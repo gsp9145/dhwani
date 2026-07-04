@@ -1,0 +1,119 @@
+import SwiftUI
+import ServiceManagement
+
+/// The Settings window content: a System Settings-style grouped form.
+/// Backed by the same UserDefaults keys the Settings singleton reads, so
+/// changes apply to the running dictation pipeline immediately.
+@available(macOS 26.0, *)
+struct SettingsView: View {
+    @AppStorage("holdKey") private var holdKey = HoldKey.fn.rawValue
+    @AppStorage("insertMode") private var insertMode = InsertMode.paste.rawValue
+    @AppStorage("aiPolish") private var aiPolish = false
+    @AppStorage("playSounds") private var playSounds = true
+    @AppStorage("restoreClipboard") private var restoreClipboard = true
+    @AppStorage("showLiveText") private var showLiveText = false
+
+    @State private var launchAtLogin = SMAppService.mainApp.status == .enabled
+    @State private var accessibilityGranted = Permissions.accessibilityGranted
+    @State private var micGranted = Permissions.micStatus == .authorized
+    @State private var todayStats: (notes: Int, words: Int) = (0, 0)
+    @State private var totalStats: (notes: Int, words: Int) = (0, 0)
+
+    private let refresh = Timer.publish(every: 2, on: .main, in: .common).autoconnect()
+
+    var body: some View {
+        Form {
+            Section("Dictation") {
+                Picker("Dictation key", selection: $holdKey) {
+                    ForEach(HoldKey.allCases, id: \.rawValue) { key in
+                        Text(key.displayName).tag(key.rawValue)
+                    }
+                }
+                Text("Hold to talk · double-tap to lock hands-free · Esc cancels")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                Picker("Insert method", selection: $insertMode) {
+                    Text("Paste (fast, recommended)").tag(InsertMode.paste.rawValue)
+                    Text("Type keystrokes (max compatibility)").tag(InsertMode.type.rawValue)
+                }
+                Toggle("Show live transcript in the pill", isOn: $showLiveText)
+                Toggle("Sounds", isOn: $playSounds)
+            }
+
+            Section("Text") {
+                Toggle("AI Polish (on-device)", isOn: $aiPolish)
+                    .disabled(!AIFormatter.isAvailable)
+                if !AIFormatter.isAvailable {
+                    Text("Requires Apple Intelligence (System Settings → Apple Intelligence & Siri). The toggle enables itself once available.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+                Toggle("Restore clipboard after paste", isOn: $restoreClipboard)
+            }
+
+            Section("System") {
+                Toggle("Launch at login", isOn: $launchAtLogin)
+                    .onChange(of: launchAtLogin) { _, enable in
+                        let service = SMAppService.mainApp
+                        do {
+                            if enable { try service.register() } else { try service.unregister() }
+                        } catch {
+                            launchAtLogin = service.status == .enabled
+                        }
+                    }
+                permissionRow(name: "Accessibility",
+                              granted: accessibilityGranted,
+                              help: "Sees the dictation key globally and pastes for you.") {
+                    Permissions.promptAccessibility()
+                    Permissions.openAccessibilitySettings()
+                }
+                permissionRow(name: "Microphone",
+                              granted: micGranted,
+                              help: "Hears you while the dictation key is held.") {
+                    if Permissions.micStatus == .notDetermined {
+                        Permissions.requestMic { _ in }
+                    } else if let url = URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_Microphone") {
+                        NSWorkspace.shared.open(url)
+                    }
+                }
+            }
+
+            Section("Activity") {
+                LabeledContent("Today", value: "\(todayStats.words) words · \(todayStats.notes) notes")
+                LabeledContent("All time", value: "\(totalStats.words) words · \(totalStats.notes) notes")
+                Button("Open Transcripts Folder") {
+                    NSWorkspace.shared.open(HistoryStore.transcriptsFolder)
+                }
+            }
+        }
+        .formStyle(.grouped)
+        .frame(width: 460, height: 620)
+        .onAppear(perform: reload)
+        .onReceive(refresh) { _ in reload() }
+    }
+
+    @ViewBuilder
+    private func permissionRow(name: String, granted: Bool, help: String,
+                               action: @escaping () -> Void) -> some View {
+        LabeledContent {
+            if granted {
+                Label("Granted", systemImage: "checkmark.circle.fill")
+                    .foregroundStyle(.green)
+                    .labelStyle(.titleAndIcon)
+            } else {
+                Button("Grant…", action: action)
+            }
+        } label: {
+            Text(name)
+            Text(help)
+        }
+    }
+
+    private func reload() {
+        accessibilityGranted = Permissions.accessibilityGranted
+        micGranted = Permissions.micStatus == .authorized
+        launchAtLogin = SMAppService.mainApp.status == .enabled
+        todayStats = HistoryStore.shared.todayStats()
+        totalStats = HistoryStore.shared.totalStats()
+    }
+}

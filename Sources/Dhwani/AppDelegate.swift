@@ -1,5 +1,6 @@
 import AppKit
 import ServiceManagement
+import SwiftUI
 
 @available(macOS 26.0, *)
 final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
@@ -7,6 +8,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     private let hotkeys = HotkeyManager()
     private let dictation = DictationController()
     private var accessibilityRetryTimer: Timer?
+    private var settingsWindow: NSWindow?
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         // Single instance: a second copy would double-paste every dictation.
@@ -164,55 +166,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         hotkeyRoot.submenu = hotkeyMenu
         menu.addItem(hotkeyRoot)
 
-        // Insert mode picker
-        let insertMenu = NSMenu()
-        let pasteItem = NSMenuItem(title: "Paste (fast, recommended)", action: #selector(selectInsertMode(_:)), keyEquivalent: "")
-        pasteItem.target = self
-        pasteItem.representedObject = InsertMode.paste.rawValue
-        pasteItem.state = Settings.shared.insertMode == .paste ? .on : .off
-        insertMenu.addItem(pasteItem)
-        let typeItem = NSMenuItem(title: "Type keystrokes (max compatibility)", action: #selector(selectInsertMode(_:)), keyEquivalent: "")
-        typeItem.target = self
-        typeItem.representedObject = InsertMode.type.rawValue
-        typeItem.state = Settings.shared.insertMode == .type ? .on : .off
-        insertMenu.addItem(typeItem)
-        let insertRoot = NSMenuItem(title: "Insert Method", action: nil, keyEquivalent: "")
-        insertRoot.submenu = insertMenu
-        menu.addItem(insertRoot)
-
-        let polishItem = NSMenuItem(title: "AI Polish (on-device)", action: #selector(togglePolish), keyEquivalent: "")
-        polishItem.target = self
-        polishItem.state = Settings.shared.aiPolish ? .on : .off
-        if !AIFormatter.isAvailable {
-            polishItem.action = nil
-            polishItem.toolTip = "Apple Intelligence isn't available on this Mac"
-        }
-        menu.addItem(polishItem)
-
-        let liveTextItem = NSMenuItem(title: "Show Live Transcript in Pill", action: #selector(toggleLiveText), keyEquivalent: "")
-        liveTextItem.target = self
-        liveTextItem.state = Settings.shared.showLiveText ? .on : .off
-        menu.addItem(liveTextItem)
-
-        let soundsItem = NSMenuItem(title: "Sounds", action: #selector(toggleSounds), keyEquivalent: "")
-        soundsItem.target = self
-        soundsItem.state = Settings.shared.playSounds ? .on : .off
-        menu.addItem(soundsItem)
-
-        let clipboardItem = NSMenuItem(title: "Restore Clipboard After Paste", action: #selector(toggleRestoreClipboard), keyEquivalent: "")
-        clipboardItem.target = self
-        clipboardItem.state = Settings.shared.restoreClipboard ? .on : .off
-        menu.addItem(clipboardItem)
-
-        let loginItem = NSMenuItem(title: "Launch at Login", action: #selector(toggleLaunchAtLogin), keyEquivalent: "")
-        loginItem.target = self
-        loginItem.state = SMAppService.mainApp.status == .enabled ? .on : .off
-        menu.addItem(loginItem)
         menu.addItem(.separator())
 
-        let permissionsItem = NSMenuItem(title: "Permissions & Setup…", action: #selector(showOnboarding), keyEquivalent: "")
-        permissionsItem.target = self
-        menu.addItem(permissionsItem)
+        let settingsItem = NSMenuItem(title: "Settings…", action: #selector(openSettings), keyEquivalent: ",")
+        settingsItem.target = self
+        menu.addItem(settingsItem)
 
         let quitItem = NSMenuItem(title: "Quit Dhwani", action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q")
         menu.addItem(quitItem)
@@ -225,6 +183,20 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     }
 
     // MARK: - Actions
+
+    @objc private func openSettings() {
+        if settingsWindow == nil {
+            let hosting = NSHostingController(rootView: SettingsView())
+            let window = NSWindow(contentViewController: hosting)
+            window.title = "Dhwani Settings"
+            window.styleMask = [.titled, .closable, .miniaturizable]
+            window.isReleasedWhenClosed = false
+            window.center()
+            settingsWindow = window
+        }
+        NSApp.activate(ignoringOtherApps: true)
+        settingsWindow?.makeKeyAndOrderFront(nil)
+    }
 
     @objc private func grantAccessibility() {
         Permissions.promptAccessibility()
@@ -254,33 +226,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         guard let raw = sender.representedObject as? String, let key = HoldKey(rawValue: raw) else { return }
         Settings.shared.holdKey = key
         if key == .fn { warnAboutGlobeKeyIfNeeded() }
-    }
-
-    @objc private func selectInsertMode(_ sender: NSMenuItem) {
-        guard let raw = sender.representedObject as? String, let mode = InsertMode(rawValue: raw) else { return }
-        Settings.shared.insertMode = mode
-    }
-
-    @objc private func togglePolish() { Settings.shared.aiPolish.toggle() }
-    @objc private func toggleLiveText() { Settings.shared.showLiveText.toggle() }
-    @objc private func toggleSounds() { Settings.shared.playSounds.toggle() }
-    @objc private func toggleRestoreClipboard() { Settings.shared.restoreClipboard.toggle() }
-
-    @objc private func toggleLaunchAtLogin() {
-        let service = SMAppService.mainApp
-        do {
-            if service.status == .enabled {
-                try service.unregister()
-            } else {
-                try service.register()
-            }
-        } catch {
-            let alert = NSAlert()
-            alert.messageText = "Couldn't change Launch at Login"
-            alert.informativeText = "\(error.localizedDescription)\n\nTip: move Dhwani.app into /Applications first."
-            NSApp.activate(ignoringOtherApps: true)
-            alert.runModal()
-        }
     }
 
     // MARK: - Onboarding
