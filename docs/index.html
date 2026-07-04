@@ -422,23 +422,22 @@
     <div class="dh-grid2d">
       <div data-reveal>
         <p style="font-family:var(--mono);font-size:13px;color:var(--violet2);letter-spacing:.14em;text-transform:uppercase;margin-bottom:16px">Get started</p>
-        <h2 style="font-size:clamp(30px,4vw,46px);font-weight:600;letter-spacing:-.025em;line-height:1.1;margin-bottom:20px">Build it &amp; run it<br>in two commands.</h2>
-        <p style="color:var(--dim);font-size:16px;line-height:1.65;margin-bottom:26px">Clone the repo, run the build script, and open the app. Optionally drop it into <span style="font-family:var(--mono);font-size:13px;color:var(--violet2)">/Applications</span> for launch-at-login.</p>
+        <h2 style="font-size:clamp(30px,4vw,46px);font-weight:600;letter-spacing:-.025em;line-height:1.1;margin-bottom:20px">Install with<br>one command.</h2>
+        <p style="color:var(--dim);font-size:16px;line-height:1.65;margin-bottom:26px">Paste this in Terminal — it checks your Mac, installs the latest release to <span style="font-family:var(--mono);font-size:13px;color:var(--violet2)">/Applications</span>, and launches it. <a href="https://github.com/gsp9145/dhwani/blob/main/docs/install.sh" style="color:var(--violet2)">Read the script first</a> if you like — it's 50 honest lines.</p>
         <div style="border-radius:16px;border:1px solid var(--line);background:#0a0b16;overflow:hidden;box-shadow:0 16px 50px rgba(0,0,0,.5)">
           <div style="display:flex;align-items:center;gap:7px;padding:13px 16px;border-bottom:1px solid var(--line)">
             <span style="width:11px;height:11px;border-radius:50%;background:#ff5f57"></span><span style="width:11px;height:11px;border-radius:50%;background:#febc2e"></span><span style="width:11px;height:11px;border-radius:50%;background:#28c840"></span>
             <span style="margin-left:8px;font-family:var(--mono);font-size:12px;color:var(--dim)">Terminal</span>
+            <button id="dh-copy" style="margin-left:auto;font-family:var(--mono);font-size:11.5px;color:var(--violet2);background:rgba(139,92,246,.1);border:1px solid rgba(139,92,246,.3);border-radius:7px;padding:4px 10px;cursor:pointer">copy</button>
           </div>
-          <div style="padding:20px;font-family:var(--mono);font-size:13.5px;line-height:2;overflow-x:auto">
-            <div style="color:var(--dim)"># build the app</div>
-            <div><span style="color:var(--violet2)">$</span> ./scripts/build_app.sh</div>
-            <div style="color:var(--dim);margin-top:10px"># launch it</div>
-            <div><span style="color:var(--violet2)">$</span> open dist/Dhwani.app</div>
+          <div style="padding:20px;font-family:var(--mono);font-size:13px;line-height:2;overflow-x:auto">
+            <div style="color:var(--dim)"># install Dhwani (Apple Silicon · macOS 26)</div>
+            <div id="dh-installcmd"><span style="color:var(--violet2)">$</span> curl -fsSL https://gsp9145.github.io/dhwani/install.sh | bash</div>
           </div>
         </div>
-        <div style="display:flex;gap:12px;margin-top:24px;flex-wrap:wrap">
-          <a href="https://github.com/gsp9145/dhwani" style="display:inline-flex;align-items:center;gap:9px;padding:14px 24px;border-radius:12px;background:linear-gradient(140deg,var(--violet),var(--indigo));color:#fff;text-decoration:none;font-size:15px;font-weight:600;box-shadow:0 10px 30px rgba(139,92,246,.4)">Clone on GitHub</a>
-          <span style="align-self:center;font-family:var(--mono);font-size:12.5px;color:var(--dim)">requires Xcode CLT · xcode-select --install</span>
+        <div style="display:flex;gap:12px;margin-top:24px;flex-wrap:wrap;align-items:center">
+          <a href="https://github.com/gsp9145/dhwani/releases/latest" style="display:inline-flex;align-items:center;gap:9px;padding:14px 24px;border-radius:12px;background:linear-gradient(140deg,var(--violet),var(--indigo));color:#fff;text-decoration:none;font-size:15px;font-weight:600;box-shadow:0 10px 30px rgba(139,92,246,.4)">Download the .zip</a>
+          <span style="font-family:var(--mono);font-size:12.5px;color:var(--dim)">or build from source — see the <a href="https://github.com/gsp9145/dhwani" style="color:var(--violet2)">README</a></span>
         </div>
       </div>
       <div data-reveal data-delay="120">
@@ -832,6 +831,18 @@
     }
   }
 
+  // ---- copy install command ----
+  function initCopy() {
+    var btn = document.getElementById('dh-copy');
+    if (!btn) return;
+    btn.addEventListener('click', function () {
+      navigator.clipboard.writeText('curl -fsSL https://gsp9145.github.io/dhwani/install.sh | bash').then(function () {
+        btn.textContent = 'copied ✓';
+        setTimeout(function () { btn.textContent = 'copy'; }, 1600);
+      });
+    });
+  }
+
   // ---- speed section: animated bars + counters ----
   function initStats() {
     var fills = document.querySelectorAll('.dh-statfill');
@@ -871,6 +882,7 @@
     initPill();
     initOrb();
     initStats();
+    initCopy();
   }
   if (document.readyState === 'loading') {
     document.addEventListener('DOMContentLoaded', init);

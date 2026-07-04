@@ -42,6 +42,16 @@ release Fn ──► finalize
 - Apple Silicon recommended
 - Xcode Command Line Tools to build (`xcode-select --install`)
 
+## Install
+
+**One command** (Apple Silicon, macOS 26+):
+
+```bash
+curl -fsSL https://gsp9145.github.io/dhwani/install.sh | bash
+```
+
+Or download the zip from [Releases](https://github.com/gsp9145/dhwani/releases/latest) — browser downloads are quarantined, so the first launch needs System Settings → Privacy & Security → **Open Anyway** (the build isn't notarized yet).
+
 ## Build & run
 
 ```bash
