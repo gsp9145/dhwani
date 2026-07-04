@@ -47,6 +47,13 @@
   @media(max-width:640px){
     .dh-navstar{display:none}
   }
+
+  /* FAQ */
+  .dh-faq details{border:1px solid var(--line);border-radius:14px;background:var(--card);padding:18px 22px}
+  .dh-faq summary{list-style:none;cursor:pointer;display:flex;align-items:center;justify-content:space-between;gap:16px}
+  .dh-faq summary::-webkit-details-marker{display:none}
+  .dh-faq .dh-faqplus{transition:transform .25s ease;color:var(--violet2);flex-shrink:0}
+  .dh-faq details[open] .dh-faqplus{transform:rotate(45deg)}
 </style>
 </head>
 <body>
@@ -73,6 +80,7 @@
       <a href="#privacy" style="color:inherit;text-decoration:none">Privacy</a>
       <a href="#features" style="color:inherit;text-decoration:none">Features</a>
       <a href="#compare" style="color:inherit;text-decoration:none">vs Wispr</a>
+      <a href="#faq" style="color:inherit;text-decoration:none">FAQ</a>
       <a href="#opensource" style="color:inherit;text-decoration:none">Open source</a>
     </div>
     <div style="display:flex;align-items:center;gap:12px">
@@ -165,6 +173,51 @@
         <h3 style="font-size:22px;font-weight:600;letter-spacing:-.01em;margin-bottom:10px">Release &amp; done</h3>
         <p style="color:var(--dim);font-size:15px;line-height:1.6">Let go. An optional on-device LLM strips the "ums", fixes punctuation, then pastes clean text — clipboard restored.</p>
       </div>
+    </div>
+  </section>
+
+  <!-- SPEED -->
+  <section id="speed" style="position:relative;z-index:1;padding:20px 24px 110px;max-width:880px;margin:0 auto">
+    <div data-reveal style="text-align:center;margin-bottom:50px">
+      <p style="font-family:var(--mono);font-size:13px;color:var(--violet2);letter-spacing:.14em;text-transform:uppercase;margin-bottom:16px">Why voice</p>
+      <h2 style="font-size:clamp(32px,4.5vw,52px);font-weight:600;letter-spacing:-.025em;line-height:1.08">You speak <span style="font-family:var(--serif);font-style:italic;font-weight:400;color:var(--violet2)">4× faster</span> than you type.</h2>
+    </div>
+    <div data-reveal data-delay="120" style="display:flex;flex-direction:column;gap:30px;padding:40px 36px;border:1px solid var(--line);border-radius:22px;background:var(--card)">
+      <div>
+        <div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:10px">
+          <span style="font-size:14.5px;color:var(--dim)">Typing</span>
+          <span style="font-family:var(--mono);font-size:14px;color:var(--dim)"><span class="dh-count" data-n="45">0</span> wpm</span>
+        </div>
+        <div style="height:14px;border-radius:100px;background:rgba(255,255,255,.05);overflow:hidden">
+          <div class="dh-statfill" data-w="25" style="width:0%;height:100%;border-radius:100px;background:rgba(255,255,255,.18);transition:width 1.4s cubic-bezier(.2,.7,.2,1)"></div>
+        </div>
+      </div>
+      <div>
+        <div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:10px">
+          <span style="display:flex;align-items:center;gap:9px;font-size:14.5px;color:var(--ink);font-weight:600"><span style="display:inline-flex;align-items:center;justify-content:center;width:20px;height:20px;border-radius:6px;background:linear-gradient(140deg,var(--violet),var(--indigo))"><span style="font-family:var(--deva);font-size:13px;line-height:1;color:#fff">ध</span></span>Speaking with Dhwani</span>
+          <span style="font-family:var(--mono);font-size:14px;color:var(--violet2)"><span class="dh-count" data-n="180">0</span> wpm</span>
+        </div>
+        <div style="height:14px;border-radius:100px;background:rgba(255,255,255,.05);overflow:hidden">
+          <div class="dh-statfill" data-w="100" style="width:0%;height:100%;border-radius:100px;background:linear-gradient(90deg,var(--violet),var(--indigo));box-shadow:0 0 18px rgba(139,92,246,.5);transition:width 1.4s cubic-bezier(.2,.7,.2,1)"></div>
+        </div>
+      </div>
+      <p style="font-size:13px;color:var(--dim);text-align:center;margin-top:2px">The average professional types ~45 words per minute. Natural speech runs ~180.</p>
+    </div>
+    <div data-reveal data-delay="220" style="margin-top:40px;text-align:center">
+      <p style="font-family:var(--mono);font-size:12px;color:var(--dim);letter-spacing:.14em;text-transform:uppercase;margin-bottom:18px">Works everywhere you type</p>
+      <div style="display:flex;flex-wrap:wrap;justify-content:center;gap:12px">
+        <span style="display:inline-flex;align-items:center;justify-content:center;width:46px;height:46px;border-radius:13px;border:1px solid var(--line);background:var(--card)"><img src="assets/apps/gmail.svg" width="20" height="20" alt="Gmail"></span>
+        <span style="display:inline-flex;align-items:center;justify-content:center;width:46px;height:46px;border-radius:13px;border:1px solid var(--line);background:var(--card)"><img src="assets/apps/notion.svg" width="20" height="20" alt="Notion"></span>
+        <span style="display:inline-flex;align-items:center;justify-content:center;width:46px;height:46px;border-radius:13px;border:1px solid var(--line);background:var(--card)"><img src="assets/apps/claude.svg" width="20" height="20" alt="Claude"></span>
+        <span style="display:inline-flex;align-items:center;justify-content:center;width:46px;height:46px;border-radius:13px;border:1px solid var(--line);background:var(--card)"><img src="assets/apps/whatsapp.svg" width="20" height="20" alt="WhatsApp"></span>
+        <span style="display:inline-flex;align-items:center;justify-content:center;width:46px;height:46px;border-radius:13px;border:1px solid var(--line);background:var(--card)"><img src="assets/apps/github.svg" width="20" height="20" alt="GitHub"></span>
+        <span style="display:inline-flex;align-items:center;justify-content:center;width:46px;height:46px;border-radius:13px;border:1px solid var(--line);background:var(--card)"><img src="assets/apps/linear.svg" width="20" height="20" alt="Linear"></span>
+        <span style="display:inline-flex;align-items:center;justify-content:center;width:46px;height:46px;border-radius:13px;border:1px solid var(--line);background:var(--card)"><img src="assets/apps/discord.svg" width="20" height="20" alt="Discord"></span>
+        <span style="display:inline-flex;align-items:center;justify-content:center;width:46px;height:46px;border-radius:13px;border:1px solid var(--line);background:var(--card)"><img src="assets/apps/figma.svg" width="20" height="20" alt="Figma"></span>
+        <span style="display:inline-flex;align-items:center;justify-content:center;width:46px;height:46px;border-radius:13px;border:1px solid var(--line);background:var(--card)"><img src="assets/apps/obsidian.svg" width="20" height="20" alt="Obsidian"></span>
+        <span style="display:inline-flex;align-items:center;justify-content:center;width:46px;height:46px;border-radius:13px;border:1px solid var(--line);background:var(--card)"><img src="assets/apps/telegram.svg" width="20" height="20" alt="Telegram"></span>
+      </div>
+      <p style="font-size:13.5px;color:var(--dim);margin-top:16px">…and every other text field on your Mac.</p>
     </div>
   </section>
 
@@ -404,6 +457,44 @@
     </div>
   </section>
 
+  <!-- FAQ -->
+  <section id="faq" style="position:relative;z-index:1;padding:20px 24px 100px;max-width:760px;margin:0 auto">
+    <div data-reveal style="text-align:center;margin-bottom:46px">
+      <p style="font-family:var(--mono);font-size:13px;color:var(--violet2);letter-spacing:.14em;text-transform:uppercase;margin-bottom:16px">FAQ</p>
+      <h2 style="font-size:clamp(30px,4.2vw,46px);font-weight:600;letter-spacing:-.025em;line-height:1.08">Questions, <span style="font-family:var(--serif);font-style:italic;font-weight:400;color:var(--violet2)">answered honestly.</span></h2>
+    </div>
+    <div class="dh-faq" data-reveal data-delay="100" style="display:flex;flex-direction:column;gap:12px">
+      <details>
+        <summary><span style="font-weight:600;font-size:15.5px">Does my voice ever leave my Mac?</span><svg class="dh-faqplus" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M5 12h14"/><path d="M12 5v14"/></svg></summary>
+        <p style="margin-top:12px;color:var(--dim);font-size:14.5px;line-height:1.65">No. Transcription and AI polish run entirely on-device using Apple's speech and language models. The binary makes zero network calls — and because Dhwani is open source, you don't have to take our word for it: read the code.</p>
+      </details>
+      <details>
+        <summary><span style="font-weight:600;font-size:15.5px">Why does it require macOS 26?</span><svg class="dh-faqplus" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M5 12h14"/><path d="M12 5v14"/></svg></summary>
+        <p style="margin-top:12px;color:var(--dim);font-size:14.5px;line-height:1.65">Dhwani is built on SpeechAnalyzer, Apple's on-device streaming speech engine introduced in macOS 26 Tahoe — it's what makes fast, private, zero-cost transcription possible. Support for older Macs via a bundled open-source model (whisper.cpp / Parakeet) is on the roadmap.</p>
+      </details>
+      <details>
+        <summary><span style="font-weight:600;font-size:15.5px">Why does it need the Accessibility permission?</span><svg class="dh-faqplus" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M5 12h14"/><path d="M12 5v14"/></svg></summary>
+        <p style="margin-top:12px;color:var(--dim);font-size:14.5px;line-height:1.65">Two reasons: seeing your dictation key while any app is focused, and pasting the finished text for you. That's the same permission Wispr Flow and every dictation utility requires. Dhwani never reads your screen or logs your keystrokes — the event tap watches only for its own hotkey and Escape.</p>
+      </details>
+      <details>
+        <summary><span style="font-weight:600;font-size:15.5px">How is it free? What's the catch?</span><svg class="dh-faqplus" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M5 12h14"/><path d="M12 5v14"/></svg></summary>
+        <p style="margin-top:12px;color:var(--dim);font-size:14.5px;line-height:1.65">There is no catch. Cloud dictation apps charge monthly because they pay for GPU servers on every word you speak. Dhwani has no servers — Apple's models run on the Mac you already own. MIT-licensed, no account, no telemetry, no upsell.</p>
+      </details>
+      <details>
+        <summary><span style="font-weight:600;font-size:15.5px">How is this different from macOS built-in dictation?</span><svg class="dh-faqplus" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M5 12h14"/><path d="M12 5v14"/></svg></summary>
+        <p style="margin-top:12px;color:var(--dim);font-size:14.5px;line-height:1.65">Apple Dictation types your "um"s and false starts verbatim and offers no history. Dhwani gives you push-to-talk ergonomics, a live transcript pill, optional AI cleanup of fillers and self-corrections, hands-free mode, and a permanent local archive of everything you've dictated with daily stats.</p>
+      </details>
+      <details>
+        <summary><span style="font-weight:600;font-size:15.5px">Which languages are supported?</span><svg class="dh-faqplus" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M5 12h14"/><path d="M12 5v14"/></svg></summary>
+        <p style="margin-top:12px;color:var(--dim);font-size:14.5px;line-height:1.65">Around 40 locales — everything Apple's on-device speech models support, with the model for your language downloaded automatically on first launch. Additional engines for broader coverage are on the roadmap.</p>
+      </details>
+      <details>
+        <summary><span style="font-weight:600;font-size:15.5px">Can I contribute?</span><svg class="dh-faqplus" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M5 12h14"/><path d="M12 5v14"/></svg></summary>
+        <p style="margin-top:12px;color:var(--dim);font-size:14.5px;line-height:1.65">Please do — the project is young and moving fast. Issues, pull requests, and feature discussions are all welcome on <a href="https://github.com/gsp9145/dhwani" style="color:var(--violet2)">GitHub</a>.</p>
+      </details>
+    </div>
+  </section>
+
   <!-- OPEN SOURCE -->
   <section id="opensource" style="position:relative;z-index:1;padding:60px 24px 110px;max-width:1120px;margin:0 auto">
     <div data-reveal style="position:relative;overflow:hidden;padding:60px 44px;border-radius:28px;border:1px solid rgba(139,92,246,.3);background:linear-gradient(155deg,rgba(139,92,246,.14),rgba(99,102,241,.06) 60%,rgba(255,255,255,.01));text-align:center">
@@ -424,6 +515,7 @@
         <div style="display:flex;gap:10px;flex-wrap:wrap;justify-content:center;font-family:var(--mono);font-size:12.5px;color:var(--dim)">
           <span style="padding:7px 13px;border-radius:100px;border:1px solid var(--line)">Hands-free toggle mode</span>
           <span style="padding:7px 13px;border-radius:100px;border:1px solid var(--line)">Personal dictionary</span>
+          <span style="padding:7px 13px;border-radius:100px;border:1px solid var(--line)">Snippet library</span>
           <span style="padding:7px 13px;border-radius:100px;border:1px solid var(--line)">Per-app profiles</span>
           <span style="padding:7px 13px;border-radius:100px;border:1px solid var(--line)">Command mode</span>
           <span style="padding:7px 13px;border-radius:100px;border:1px solid var(--line)">History search</span>
@@ -732,11 +824,45 @@
     }
   }
 
+  // ---- speed section: animated bars + counters ----
+  function initStats() {
+    var fills = document.querySelectorAll('.dh-statfill');
+    var counts = document.querySelectorAll('.dh-count');
+    if (!fills.length) return;
+    function setFinal() {
+      fills.forEach(function (f) { f.style.width = f.getAttribute('data-w') + '%'; });
+      counts.forEach(function (c) { c.textContent = c.getAttribute('data-n'); });
+    }
+    if (reduce) { setFinal(); return; }
+    function run() {
+      fills.forEach(function (f) { f.style.width = f.getAttribute('data-w') + '%'; });
+      counts.forEach(function (c) {
+        var n = parseInt(c.getAttribute('data-n'), 10);
+        var start = performance.now();
+        function step(t) {
+          var p = Math.min(1, (t - start) / 1400);
+          p = 1 - Math.pow(1 - p, 3);
+          c.textContent = Math.round(n * p);
+          if (p < 1) requestAnimationFrame(step);
+        }
+        requestAnimationFrame(step);
+      });
+    }
+    var section = document.getElementById('speed');
+    var io = new IntersectionObserver(function (entries) {
+      entries.forEach(function (e) {
+        if (e.isIntersecting) { run(); io.disconnect(); }
+      });
+    }, { threshold: 0.35 });
+    io.observe(section);
+  }
+
   function init() {
     initNav();
     initReveals();
     initPill();
     initOrb();
+    initStats();
   }
   if (document.readyState === 'loading') {
     document.addEventListener('DOMContentLoaded', init);
