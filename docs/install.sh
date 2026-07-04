@@ -31,13 +31,18 @@ echo "→ Downloading the latest release…"
 curl -fsSL -o "$tmp/Dhwani.zip" "https://github.com/$REPO/releases/latest/download/Dhwani.zip"
 
 echo "→ Installing to /Applications…"
-pkill -x Dhwani 2>/dev/null || true
+if pgrep -x Dhwani >/dev/null 2>&1; then
+  pkill -x Dhwani 2>/dev/null || true
+  sleep 1 # let LaunchServices notice the old instance is gone
+fi
 ditto -xk "$tmp/Dhwani.zip" "$tmp/extract"
 rm -rf "$APP"
 mv "$tmp/extract/Dhwani.app" "$APP"
 xattr -dr com.apple.quarantine "$APP" 2>/dev/null || true
 
-open "$APP"
+# open can race a just-killed instance (LaunchServices -600); retry once
+open "$APP" 2>/dev/null || { sleep 2; open "$APP" 2>/dev/null; } || \
+  echo "Installed — launch Dhwani from /Applications if it didn't open."
 
 cat <<'EOF'
 
