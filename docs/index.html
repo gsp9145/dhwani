@@ -48,6 +48,14 @@
     .dh-navstar{display:none}
   }
 
+  /* app tiles: monochrome at rest, brand color + lift on hover */
+  .dh-app{display:inline-flex;align-items:center;justify-content:center;width:46px;height:46px;border-radius:13px;border:1px solid var(--line);background:var(--card);transition:transform .25s ease,border-color .25s ease,background .25s ease}
+  .dh-app img.c{display:none}
+  .dh-app:hover{transform:translateY(-3px);border-color:rgba(139,92,246,.4);background:rgba(255,255,255,.05)}
+  .dh-app:hover img.m{display:none}
+  .dh-app:hover img.c{display:block}
+  @media (prefers-reduced-motion: reduce){.dh-app{transition:none}.dh-app:hover{transform:none}}
+
   /* FAQ */
   .dh-faq details{border:1px solid var(--line);border-radius:14px;background:var(--card);padding:18px 22px}
   .dh-faq summary{list-style:none;cursor:pointer;display:flex;align-items:center;justify-content:space-between;gap:16px}
@@ -206,16 +214,16 @@
     <div data-reveal data-delay="220" style="margin-top:40px;text-align:center">
       <p style="font-family:var(--mono);font-size:12px;color:var(--dim);letter-spacing:.14em;text-transform:uppercase;margin-bottom:18px">Works everywhere you type</p>
       <div style="display:flex;flex-wrap:wrap;justify-content:center;gap:12px">
-        <span style="display:inline-flex;align-items:center;justify-content:center;width:46px;height:46px;border-radius:13px;border:1px solid var(--line);background:var(--card)"><img src="assets/apps/gmail.svg" width="20" height="20" alt="Gmail"></span>
-        <span style="display:inline-flex;align-items:center;justify-content:center;width:46px;height:46px;border-radius:13px;border:1px solid var(--line);background:var(--card)"><img src="assets/apps/notion.svg" width="20" height="20" alt="Notion"></span>
-        <span style="display:inline-flex;align-items:center;justify-content:center;width:46px;height:46px;border-radius:13px;border:1px solid var(--line);background:var(--card)"><img src="assets/apps/claude.svg" width="20" height="20" alt="Claude"></span>
-        <span style="display:inline-flex;align-items:center;justify-content:center;width:46px;height:46px;border-radius:13px;border:1px solid var(--line);background:var(--card)"><img src="assets/apps/whatsapp.svg" width="20" height="20" alt="WhatsApp"></span>
-        <span style="display:inline-flex;align-items:center;justify-content:center;width:46px;height:46px;border-radius:13px;border:1px solid var(--line);background:var(--card)"><img src="assets/apps/github.svg" width="20" height="20" alt="GitHub"></span>
-        <span style="display:inline-flex;align-items:center;justify-content:center;width:46px;height:46px;border-radius:13px;border:1px solid var(--line);background:var(--card)"><img src="assets/apps/linear.svg" width="20" height="20" alt="Linear"></span>
-        <span style="display:inline-flex;align-items:center;justify-content:center;width:46px;height:46px;border-radius:13px;border:1px solid var(--line);background:var(--card)"><img src="assets/apps/discord.svg" width="20" height="20" alt="Discord"></span>
-        <span style="display:inline-flex;align-items:center;justify-content:center;width:46px;height:46px;border-radius:13px;border:1px solid var(--line);background:var(--card)"><img src="assets/apps/figma.svg" width="20" height="20" alt="Figma"></span>
-        <span style="display:inline-flex;align-items:center;justify-content:center;width:46px;height:46px;border-radius:13px;border:1px solid var(--line);background:var(--card)"><img src="assets/apps/obsidian.svg" width="20" height="20" alt="Obsidian"></span>
-        <span style="display:inline-flex;align-items:center;justify-content:center;width:46px;height:46px;border-radius:13px;border:1px solid var(--line);background:var(--card)"><img src="assets/apps/telegram.svg" width="20" height="20" alt="Telegram"></span>
+        <span class="dh-app" title="Gmail"><img class="m" src="assets/apps/gmail.svg" width="20" height="20" alt="Gmail"><img class="c" src="assets/apps/color/gmail.svg" width="20" height="20" alt=""></span>
+        <span class="dh-app" title="Notion"><img class="m" src="assets/apps/notion.svg" width="20" height="20" alt="Notion"><img class="c" src="assets/apps/color/notion.svg" width="20" height="20" alt=""></span>
+        <span class="dh-app" title="Claude"><img class="m" src="assets/apps/claude.svg" width="20" height="20" alt="Claude"><img class="c" src="assets/apps/color/claude.svg" width="20" height="20" alt=""></span>
+        <span class="dh-app" title="WhatsApp"><img class="m" src="assets/apps/whatsapp.svg" width="20" height="20" alt="WhatsApp"><img class="c" src="assets/apps/color/whatsapp.svg" width="20" height="20" alt=""></span>
+        <span class="dh-app" title="GitHub"><img class="m" src="assets/apps/github.svg" width="20" height="20" alt="GitHub"><img class="c" src="assets/apps/color/github.svg" width="20" height="20" alt=""></span>
+        <span class="dh-app" title="Linear"><img class="m" src="assets/apps/linear.svg" width="20" height="20" alt="Linear"><img class="c" src="assets/apps/color/linear.svg" width="20" height="20" alt=""></span>
+        <span class="dh-app" title="Discord"><img class="m" src="assets/apps/discord.svg" width="20" height="20" alt="Discord"><img class="c" src="assets/apps/color/discord.svg" width="20" height="20" alt=""></span>
+        <span class="dh-app" title="Figma"><img class="m" src="assets/apps/figma.svg" width="20" height="20" alt="Figma"><img class="c" src="assets/apps/color/figma.svg" width="20" height="20" alt=""></span>
+        <span class="dh-app" title="Obsidian"><img class="m" src="assets/apps/obsidian.svg" width="20" height="20" alt="Obsidian"><img class="c" src="assets/apps/color/obsidian.svg" width="20" height="20" alt=""></span>
+        <span class="dh-app" title="Telegram"><img class="m" src="assets/apps/telegram.svg" width="20" height="20" alt="Telegram"><img class="c" src="assets/apps/color/telegram.svg" width="20" height="20" alt=""></span>
       </div>
       <p style="font-size:13.5px;color:var(--dim);margin-top:16px">…and every other text field on your Mac.</p>
     </div>
