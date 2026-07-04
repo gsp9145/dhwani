@@ -108,7 +108,7 @@ final class AudioRecorder {
         let rms = (sum / Float(count)).squareRoot()
         guard rms > 0 else { return 0 }
         let db = 20 * log10(rms)
-        return max(0, min(1, (db + 50) / 42)) // −50 dB…−8 dB → 0…1
+        return max(0, min(1, (db + 52) / 30)) // −52 dB…−22 dB → 0…1: normal speech fills the range
     }
 
     private static func convert(_ buffer: AVAudioPCMBuffer,
