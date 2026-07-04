@@ -10,6 +10,9 @@ final class AudioRecorder {
     /// (device switch, AirPods connect) — the engine stops delivering buffers.
     var onConfigurationChange: (() -> Void)?
 
+    /// Microphone level 0…1 per buffer, delivered on the main queue (drives the HUD waveform).
+    var onLevel: ((Float) -> Void)?
+
     // Read on the audio render thread, written on the main thread.
     private let runningLock = NSLock()
     private var _running = false
@@ -46,8 +49,13 @@ final class AudioRecorder {
         }
 
         isRunning = true
+        let levelHandler = onLevel
         input.installTap(onBus: 0, bufferSize: 4096, format: native) { [weak self] buffer, _ in
             guard let self, self.isRunning else { return }
+            if let levelHandler {
+                let level = Self.rmsLevel(buffer)
+                DispatchQueue.main.async { levelHandler(level) }
+            }
             if let converter, let target {
                 if let converted = Self.convert(buffer, with: converter, to: target) {
                     onBuffer(converted)
@@ -81,6 +89,26 @@ final class AudioRecorder {
             NotificationCenter.default.removeObserver(configObserver)
             self.configObserver = nil
         }
+    }
+
+    /// RMS of the buffer mapped from dB into 0…1 for waveform display.
+    private static func rmsLevel(_ buffer: AVAudioPCMBuffer) -> Float {
+        guard let data = buffer.floatChannelData?[0], buffer.frameLength > 0 else { return 0 }
+        let n = Int(buffer.frameLength)
+        var sum: Float = 0
+        var count = 0
+        var i = 0
+        while i < n {
+            let v = data[i]
+            sum += v * v
+            count += 1
+            i += 4 // every 4th sample is plenty for a VU meter
+        }
+        guard count > 0 else { return 0 }
+        let rms = (sum / Float(count)).squareRoot()
+        guard rms > 0 else { return 0 }
+        let db = 20 * log10(rms)
+        return max(0, min(1, (db + 50) / 42)) // −50 dB…−8 dB → 0…1
     }
 
     private static func convert(_ buffer: AVAudioPCMBuffer,

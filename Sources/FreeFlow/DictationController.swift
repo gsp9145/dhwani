@@ -113,6 +113,9 @@ final class DictationController {
         session.begin()
 
         let recorder = AudioRecorder()
+        recorder.onLevel = { level in
+            HUD.shared.updateLevel(level)
+        }
         recorder.onConfigurationChange = { [weak self] in
             // Input device changed (AirPods connected, mic unplugged): the
             // engine stops delivering buffers. Salvage what we have.
@@ -137,7 +140,7 @@ final class DictationController {
 
         state = .recording
         Sounds.start()
-        HUD.shared.show(.listening(""))
+        HUD.shared.show(.listening)
 
         maxDurationTimer?.invalidate()
         let timer = Timer(timeInterval: Self.maxDuration, repeats: false) { [weak self] _ in

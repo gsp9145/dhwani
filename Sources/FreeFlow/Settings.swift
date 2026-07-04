@@ -83,6 +83,13 @@ final class Settings {
         set { defaults.set(newValue, forKey: "aiPolish") }
     }
 
+    /// Off by default: the compact waveform pill (Wispr-style). On: a wider
+    /// pill that streams the transcript as you speak.
+    var showLiveText: Bool {
+        get { defaults.bool(forKey: "showLiveText") }
+        set { defaults.set(newValue, forKey: "showLiveText") }
+    }
+
     var playSounds: Bool {
         get { defaults.object(forKey: "playSounds") as? Bool ?? true }
         set { defaults.set(newValue, forKey: "playSounds") }

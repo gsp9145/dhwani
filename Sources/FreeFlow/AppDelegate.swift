@@ -45,16 +45,21 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         dictation.hotkeyStillHeld = { [weak self] in self?.hotkeys.isKeyCurrentlyDown ?? false }
 
         if Permissions.accessibilityGranted, hotkeys.start() {
+            NSLog("FreeFlow: event tap armed at launch")
             return
         }
+        NSLog("FreeFlow: waiting for Accessibility (granted=\(Permissions.accessibilityGranted)) — polling")
         // Poll until the user grants Accessibility, then arm the tap.
         let timer = Timer(timeInterval: 2, repeats: true) { [weak self] timer in
             guard let self, Permissions.accessibilityGranted else { return }
             if self.hotkeys.start() {
+                NSLog("FreeFlow: Accessibility granted — event tap armed")
                 timer.invalidate()
                 self.accessibilityRetryTimer = nil
                 HUD.shared.show(.info("FreeFlow armed — hold \(Settings.shared.holdKey.shortName) to dictate"))
                 HUD.shared.hide(after: 2.5)
+            } else {
+                NSLog("FreeFlow: Accessibility reported granted but tap creation failed — will retry")
             }
         }
         RunLoop.main.add(timer, forMode: .common)
@@ -94,6 +99,23 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
 
     func menuNeedsUpdate(_ menu: NSMenu) {
         menu.removeAllItems()
+
+        // Permission problems go first and loud — a dead hotkey must never be silent.
+        if !Permissions.accessibilityGranted {
+            let item = NSMenuItem(title: "⚠️ Accessibility needed — click to grant",
+                                  action: #selector(grantAccessibility), keyEquivalent: "")
+            item.target = self
+            menu.addItem(item)
+        }
+        if Permissions.micStatus != .authorized {
+            let item = NSMenuItem(title: "⚠️ Microphone needed — click to grant",
+                                  action: #selector(grantMicrophone), keyEquivalent: "")
+            item.target = self
+            menu.addItem(item)
+        }
+        if !Permissions.accessibilityGranted || Permissions.micStatus != .authorized {
+            menu.addItem(.separator())
+        }
 
         let today = HistoryStore.shared.todayStats()
         let total = HistoryStore.shared.totalStats()
@@ -165,6 +187,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         }
         menu.addItem(polishItem)
 
+        let liveTextItem = NSMenuItem(title: "Show Live Transcript in Pill", action: #selector(toggleLiveText), keyEquivalent: "")
+        liveTextItem.target = self
+        liveTextItem.state = Settings.shared.showLiveText ? .on : .off
+        menu.addItem(liveTextItem)
+
         let soundsItem = NSMenuItem(title: "Sounds", action: #selector(toggleSounds), keyEquivalent: "")
         soundsItem.target = self
         soundsItem.state = Settings.shared.playSounds ? .on : .off
@@ -197,6 +224,19 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
 
     // MARK: - Actions
 
+    @objc private func grantAccessibility() {
+        Permissions.promptAccessibility()
+        Permissions.openAccessibilitySettings()
+    }
+
+    @objc private func grantMicrophone() {
+        if Permissions.micStatus == .notDetermined {
+            Permissions.requestMic { _ in }
+        } else if let url = URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_Microphone") {
+            NSWorkspace.shared.open(url)
+        }
+    }
+
     @objc private func copyRecent(_ sender: NSMenuItem) {
         guard let text = sender.representedObject as? String else { return }
         let pb = NSPasteboard.general
@@ -220,6 +260,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     }
 
     @objc private func togglePolish() { Settings.shared.aiPolish.toggle() }
+    @objc private func toggleLiveText() { Settings.shared.showLiveText.toggle() }
     @objc private func toggleSounds() { Settings.shared.playSounds.toggle() }
     @objc private func toggleRestoreClipboard() { Settings.shared.restoreClipboard.toggle() }
 
