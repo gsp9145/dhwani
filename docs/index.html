@@ -1,0 +1,668 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Dhwani — free, private voice dictation for macOS</title>
+<meta name="description" content="Dhwani (ध्वनि) is fully-local dictation for your Mac. Hold a key, speak, and your words appear in any app. On-device speech, on-device AI polish. No cloud, no subscription, MIT licensed.">
+<meta property="og:title" content="Dhwani — free, private voice dictation for macOS">
+<meta property="og:description" content="Hold a key. Speak. Your words appear anywhere. 100% on-device — no cloud, no $20/month. Open source, MIT.">
+<meta property="og:type" content="website">
+<meta property="og:url" content="https://gsp9145.github.io/dhwani/">
+<meta name="theme-color" content="#05060e">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Cdefs%3E%3ClinearGradient id='g' x1='0' y1='0' x2='1' y2='1'%3E%3Cstop offset='0' stop-color='%238b5cf6'/%3E%3Cstop offset='1' stop-color='%236f6cf2'/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect width='64' height='64' rx='15' fill='url(%23g)'/%3E%3Ctext x='32' y='46' font-size='38' text-anchor='middle' fill='white' font-family='Tiro Devanagari Hindi,serif'%3E%E0%A4%A7%3C/text%3E%3C/svg%3E">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Geist:wght@300;400;500;600;700&family=Geist+Mono:wght@400;500&family=Instrument+Serif:ital@0;1&family=Tiro+Devanagari+Hindi:ital@0;1&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<style>
+  *{box-sizing:border-box;margin:0;padding:0}
+  html{scroll-behavior:smooth}
+  body{background:#05060e}
+  ::selection{background:rgba(139,92,246,.35);color:#fff}
+  #dhwani-root ::-webkit-scrollbar{width:11px;height:11px}
+  #dhwani-root ::-webkit-scrollbar-thumb{background:rgba(139,92,246,.35);border-radius:8px}
+  @keyframes dh-float{0%,100%{transform:translateY(0)}50%{transform:translateY(-14px)}}
+  @keyframes dh-glow{0%,100%{opacity:.55}50%{opacity:.9}}
+  @keyframes dh-spin{to{transform:rotate(360deg)}}
+  @keyframes dh-blink{0%,49%{opacity:1}50%,100%{opacity:0}}
+  @keyframes dh-drift{0%{background-position:0% 50%}50%{background-position:100% 50%}100%{background-position:0% 50%}}
+  @keyframes dh-rise{0%{transform:translateY(0);opacity:.0}20%{opacity:.7}100%{transform:translateY(-120px);opacity:0}}
+  @keyframes dh-pulsering{0%{transform:scale(.7);opacity:.7}100%{transform:scale(2.1);opacity:0}}
+
+  /* layout grids (kept as classes so they can respond) */
+  .dh-grid3{display:grid;grid-template-columns:repeat(3,1fr);gap:22px}
+  .dh-grid2{display:grid;grid-template-columns:1fr 1fr;gap:60px;align-items:center}
+  .dh-grid2c{display:grid;grid-template-columns:1fr 1fr;gap:20px}
+  .dh-grid2d{display:grid;grid-template-columns:1fr 1fr;gap:48px;align-items:start}
+  .dh-bento{display:grid;grid-template-columns:repeat(6,1fr);gap:20px}
+  .dh-span4{grid-column:span 4}
+  .dh-span2{grid-column:span 2}
+  @media(max-width:920px){
+    .dh-grid3,.dh-grid2,.dh-grid2c,.dh-grid2d{grid-template-columns:1fr;gap:26px}
+    .dh-bento{grid-template-columns:1fr}
+    .dh-span4,.dh-span2{grid-column:auto}
+    .dh-navlinks{display:none}
+  }
+  @media(max-width:640px){
+    .dh-navstar{display:none}
+  }
+</style>
+</head>
+<body>
+
+<div id="dhwani-root" style="--bg:#05060e;--bg2:#0a0b1a;--ink:#eceaf6;--dim:#9a9cb3;--violet:#8b5cf6;--violet2:#a78bfa;--indigo:#6f6cf2;--line:rgba(255,255,255,.09);--card:rgba(255,255,255,.028);--sans:'Geist',system-ui,sans-serif;--serif:'Instrument Serif',Georgia,serif;--deva:'Tiro Devanagari Hindi','Noto Serif Devanagari',serif;--mono:'Geist Mono',ui-monospace,monospace;position:relative;min-height:100vh;background:var(--bg);color:var(--ink);font-family:var(--sans);font-weight:400;line-height:1.55;overflow-x:hidden;-webkit-font-smoothing:antialiased">
+
+  <!-- ambient background glows -->
+  <div style="position:fixed;inset:0;pointer-events:none;z-index:0">
+    <div style="position:absolute;top:-15%;left:50%;transform:translateX(-50%);width:1100px;height:1100px;background:radial-gradient(circle,rgba(139,92,246,.20),transparent 62%);filter:blur(20px)"></div>
+    <div style="position:absolute;bottom:-20%;right:-10%;width:780px;height:780px;background:radial-gradient(circle,rgba(99,102,241,.14),transparent 65%);filter:blur(30px)"></div>
+    <div style="position:absolute;inset:0;background:radial-gradient(ellipse at 50% 0%,transparent 55%,rgba(5,6,14,.7));"></div>
+  </div>
+
+  <!-- NAV -->
+  <nav id="dh-nav" style="position:fixed;top:0;left:0;right:0;z-index:50;display:flex;align-items:center;justify-content:space-between;gap:20px;padding:18px 32px;transition:background .4s ease,border-color .4s ease,backdrop-filter .4s ease;border-bottom:1px solid transparent">
+    <a href="#top" style="display:flex;align-items:center;gap:12px;text-decoration:none;color:inherit">
+      <span style="display:inline-flex;align-items:center;justify-content:center;width:36px;height:36px;border-radius:11px;background:linear-gradient(140deg,var(--violet),var(--indigo));box-shadow:0 6px 22px rgba(139,92,246,.45)">
+        <span style="font-family:var(--deva);font-size:22px;line-height:1;color:#fff;transform:translateY(1px)">ध</span>
+      </span>
+      <span style="font-size:19px;font-weight:600;letter-spacing:-.01em">Dhwani</span>
+    </a>
+    <div class="dh-navlinks" style="display:flex;align-items:center;gap:22px;font-size:14.5px;color:var(--dim);white-space:nowrap">
+      <a href="#how" style="color:inherit;text-decoration:none">How it works</a>
+      <a href="#privacy" style="color:inherit;text-decoration:none">Privacy</a>
+      <a href="#features" style="color:inherit;text-decoration:none">Features</a>
+      <a href="#compare" style="color:inherit;text-decoration:none">vs Wispr</a>
+      <a href="#opensource" style="color:inherit;text-decoration:none">Open source</a>
+    </div>
+    <div style="display:flex;align-items:center;gap:12px">
+      <a class="dh-navstar" href="https://github.com/gsp9145/dhwani" style="display:inline-flex;align-items:center;gap:8px;padding:9px 16px;border-radius:10px;border:1px solid var(--line);color:var(--ink);text-decoration:none;font-size:14px;font-weight:500;white-space:nowrap">
+        <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor"><path d="M8 0C3.58 0 0 3.58 0 8a8 8 0 0 0 5.47 7.59c.4.07.55-.17.55-.38v-1.34c-2.23.49-2.7-1.07-2.7-1.07-.36-.93-.89-1.18-.89-1.18-.73-.5.05-.49.05-.49.81.06 1.23.83 1.23.83.72 1.23 1.88.87 2.34.67.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.01.08-2.12 0 0 .67-.21 2.2.82a7.6 7.6 0 0 1 4 0c1.53-1.03 2.2-.82 2.2-.82.44 1.11.16 1.92.08 2.12.51.56.82 1.28.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48v2.2c0 .21.15.46.55.38A8 8 0 0 0 16 8c0-4.42-3.58-8-8-8Z"/></svg>
+        Star on GitHub
+      </a>
+      <a href="#download" style="display:inline-flex;align-items:center;gap:8px;padding:9px 17px;border-radius:10px;background:linear-gradient(140deg,var(--violet),var(--indigo));color:#fff;text-decoration:none;font-size:14px;font-weight:600;white-space:nowrap;box-shadow:0 6px 22px rgba(139,92,246,.4)">Download</a>
+    </div>
+  </nav>
+
+  <!-- HERO -->
+  <header id="top" style="position:relative;z-index:1;min-height:100vh;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;padding:150px 24px 90px">
+    <canvas id="dhwani-orb" style="position:absolute;inset:0;width:100%;height:100%;z-index:0;pointer-events:none"></canvas>
+    <div style="position:absolute;inset:0;z-index:1;pointer-events:none;background:radial-gradient(ellipse 62% 55% at 50% 44%,rgba(5,6,14,.62),transparent 72%),radial-gradient(ellipse 56% 32% at 50% 82%,rgba(5,6,14,.72),transparent 76%)"></div>
+    <div style="position:relative;z-index:2;max-width:920px;display:flex;flex-direction:column;align-items:center">
+      <div style="display:inline-flex;align-items:center;gap:9px;padding:7px 15px 7px 11px;border-radius:100px;border:1px solid rgba(167,139,250,.3);background:rgba(12,13,26,.72);font-size:13px;color:#fff;letter-spacing:.01em;margin-top:-48px;margin-bottom:40px;backdrop-filter:blur(10px);box-shadow:0 6px 20px rgba(0,0,0,.35)">
+        <span style="width:7px;height:7px;border-radius:50%;background:var(--violet);box-shadow:0 0 10px var(--violet)"></span>
+        Open-source voice dictation for macOS
+      </div>
+      <h1 style="font-size:clamp(44px,7vw,86px);line-height:1.02;font-weight:600;letter-spacing:-.03em;margin-bottom:26px">
+        Hold a key. Speak.<br>Your words appear <span style="font-family:var(--serif);font-weight:400;font-style:italic;background:linear-gradient(120deg,var(--violet2),var(--indigo));-webkit-background-clip:text;background-clip:text;color:transparent">anywhere.</span>
+      </h1>
+      <p style="max-width:620px;font-size:clamp(17px,2vw,20px);color:var(--dim);line-height:1.6;margin-bottom:40px">
+        Dhwani is fully-local dictation for your Mac. On-device speech, on-device AI polish, pasted into whatever app you're typing in. <span style="color:var(--ink)">No cloud. No audio ever leaves your machine. No $20/month.</span>
+      </p>
+      <div style="display:flex;gap:14px;flex-wrap:wrap;justify-content:center;margin-bottom:22px">
+        <a href="https://github.com/gsp9145/dhwani/releases/latest" style="display:inline-flex;align-items:center;gap:10px;padding:15px 26px;border-radius:13px;background:linear-gradient(140deg,var(--violet),var(--indigo));color:#fff;text-decoration:none;font-size:16px;font-weight:600;box-shadow:0 10px 34px rgba(139,92,246,.45)">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M16.4 12.9c0-2.3 1.9-3.4 2-3.5-1.1-1.6-2.8-1.8-3.4-1.8-1.4-.15-2.8.85-3.5.85-.7 0-1.9-.83-3.1-.8-1.6.02-3 .92-3.8 2.35-1.6 2.8-.4 6.95 1.15 9.2.76 1.1 1.66 2.35 2.85 2.3 1.15-.05 1.58-.74 2.97-.74 1.38 0 1.77.74 2.98.72 1.23-.02 2-1.12 2.75-2.23.87-1.28 1.23-2.52 1.25-2.58-.03-.02-2.4-.92-2.42-3.64ZM14.1 5.2c.63-.77 1.06-1.83.94-2.9-.91.04-2.02.61-2.68 1.37-.59.68-1.1 1.77-.96 2.81 1.02.08 2.06-.52 2.7-1.28Z"/></svg>
+          Download for macOS
+        </a>
+        <a href="https://github.com/gsp9145/dhwani" style="display:inline-flex;align-items:center;gap:10px;padding:15px 26px;border-radius:13px;border:1px solid var(--line);background:rgba(255,255,255,.03);color:var(--ink);text-decoration:none;font-size:16px;font-weight:600;backdrop-filter:blur(6px)">
+          <svg width="17" height="17" viewBox="0 0 16 16" fill="currentColor"><path d="M8 0C3.58 0 0 3.58 0 8a8 8 0 0 0 5.47 7.59c.4.07.55-.17.55-.38v-1.34c-2.23.49-2.7-1.07-2.7-1.07-.36-.93-.89-1.18-.89-1.18-.73-.5.05-.49.05-.49.81.06 1.23.83 1.23.83.72 1.23 1.88.87 2.34.67.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.01.08-2.12 0 0 .67-.21 2.2.82a7.6 7.6 0 0 1 4 0c1.53-1.03 2.2-.82 2.2-.82.44 1.11.16 1.92.08 2.12.51.56.82 1.28.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48v2.2c0 .21.15.46.55.38A8 8 0 0 0 16 8c0-4.42-3.58-8-8-8Z"/></svg>
+          Star on GitHub
+        </a>
+      </div>
+      <p style="font-family:var(--mono);font-size:13px;color:#c7c9db;letter-spacing:.02em;text-shadow:0 1px 8px rgba(5,6,14,.9)">MIT licensed · macOS 26 Tahoe · Apple Silicon</p>
+    </div>
+
+    <!-- Flow Bar pill -->
+    <div style="position:relative;z-index:2;margin-top:66px;display:flex;flex-direction:column;align-items:center;gap:14px">
+      <div id="dh-pill" style="display:inline-flex;align-items:center;gap:14px;height:52px;padding:0 22px;border-radius:26px;background:rgba(14,15,28,.72);border:1px solid rgba(255,255,255,.10);backdrop-filter:blur(16px);box-shadow:0 18px 50px rgba(0,0,0,.5),0 0 0 1px rgba(139,92,246,.12) inset">
+        <div id="dh-wave" style="display:flex;align-items:center;gap:3.5px;height:24px"></div>
+        <div id="dh-caption" style="font-size:14.5px;font-weight:500;color:var(--ink);white-space:nowrap;min-width:1px"></div>
+      </div>
+      <span style="font-size:12.5px;color:var(--dim)">The Flow Bar — live, right where you're typing</span>
+    </div>
+  </header>
+
+  <!-- TRUST STRIP -->
+  <section style="position:relative;z-index:1;padding:0 24px 40px">
+    <div data-reveal style="max-width:980px;margin:0 auto;display:flex;flex-wrap:wrap;justify-content:center;gap:14px">
+      <div style="display:inline-flex;align-items:center;gap:9px;padding:11px 18px;border-radius:12px;border:1px solid var(--line);background:var(--card);font-size:14px;color:var(--dim)"><span style="color:var(--violet2)">◆</span> 100% on-device</div>
+      <div style="display:inline-flex;align-items:center;gap:9px;padding:11px 18px;border-radius:12px;border:1px solid var(--line);background:var(--card);font-size:14px;color:var(--dim)"><span style="color:var(--violet2)">◆</span> Zero network calls</div>
+      <div style="display:inline-flex;align-items:center;gap:9px;padding:11px 18px;border-radius:12px;border:1px solid var(--line);background:var(--card);font-size:14px;color:var(--dim)"><span style="color:var(--violet2)">◆</span> Works in every app</div>
+      <div style="display:inline-flex;align-items:center;gap:9px;padding:11px 18px;border-radius:12px;border:1px solid var(--line);background:var(--card);font-size:14px;color:var(--dim)"><span style="color:var(--violet2)">◆</span> Free forever · MIT</div>
+    </div>
+  </section>
+
+  <!-- HOW IT WORKS -->
+  <section id="how" style="position:relative;z-index:1;padding:110px 24px;max-width:1180px;margin:0 auto">
+    <div data-reveal style="text-align:center;margin-bottom:66px">
+      <p style="font-family:var(--mono);font-size:13px;color:var(--violet2);letter-spacing:.14em;text-transform:uppercase;margin-bottom:16px">How it works</p>
+      <h2 style="font-size:clamp(32px,4.5vw,52px);font-weight:600;letter-spacing:-.025em;line-height:1.08">Three moves. <span style="font-family:var(--serif);font-style:italic;font-weight:400;color:var(--violet2)">That's the whole app.</span></h2>
+    </div>
+    <div class="dh-grid3">
+      <div data-reveal data-delay="0" style="padding:34px 30px;border-radius:20px;border:1px solid var(--line);background:var(--card);position:relative;overflow:hidden">
+        <div style="font-family:var(--mono);font-size:13px;color:var(--dim);margin-bottom:26px">01</div>
+        <div style="display:flex;gap:8px;margin-bottom:26px">
+          <kbd style="font-family:var(--mono);font-size:15px;padding:12px 15px;border-radius:11px;background:rgba(255,255,255,.05);border:1px solid var(--line);border-bottom-width:3px;box-shadow:0 4px 12px rgba(0,0,0,.3)">Fn</kbd>
+          <span style="align-self:center;color:var(--dim);font-size:13px">or Right ⌘ · ⌥ · F1</span>
+        </div>
+        <h3 style="font-size:22px;font-weight:600;letter-spacing:-.01em;margin-bottom:10px">Hold to talk</h3>
+        <p style="color:var(--dim);font-size:15px;line-height:1.6">Press and hold your key from anywhere in macOS. The Flow Bar slides up at the bottom of your screen. Esc cancels.</p>
+      </div>
+      <div data-reveal data-delay="120" style="padding:34px 30px;border-radius:20px;border:1px solid var(--line);background:var(--card);position:relative;overflow:hidden">
+        <div style="font-family:var(--mono);font-size:13px;color:var(--dim);margin-bottom:26px">02</div>
+        <div style="display:flex;align-items:center;gap:3px;height:44px;margin-bottom:22px">
+          <div style="width:4px;height:14px;border-radius:2px;background:var(--violet)"></div><div style="width:4px;height:28px;border-radius:2px;background:var(--violet)"></div><div style="width:4px;height:40px;border-radius:2px;background:var(--violet2)"></div><div style="width:4px;height:24px;border-radius:2px;background:var(--violet)"></div><div style="width:4px;height:36px;border-radius:2px;background:var(--violet2)"></div><div style="width:4px;height:18px;border-radius:2px;background:var(--violet)"></div><div style="width:4px;height:30px;border-radius:2px;background:var(--violet)"></div>
+        </div>
+        <h3 style="font-size:22px;font-weight:600;letter-spacing:-.01em;margin-bottom:10px">Speak naturally</h3>
+        <p style="color:var(--dim);font-size:15px;line-height:1.6">Apple's on-device speech model streams a live transcript into the pill as you talk — no lag, no server round-trip.</p>
+      </div>
+      <div data-reveal data-delay="240" style="padding:34px 30px;border-radius:20px;border:1px solid var(--line);background:var(--card);position:relative;overflow:hidden">
+        <div style="font-family:var(--mono);font-size:13px;color:var(--dim);margin-bottom:26px">03</div>
+        <div style="display:flex;align-items:center;gap:8px;margin-bottom:26px;height:44px">
+          <span style="display:inline-flex;align-items:center;justify-content:center;width:40px;height:40px;border-radius:11px;background:linear-gradient(140deg,var(--violet),var(--indigo));color:#fff;font-size:20px">↵</span>
+          <span style="color:var(--dim);font-size:13px">pasted into the frontmost app</span>
+        </div>
+        <h3 style="font-size:22px;font-weight:600;letter-spacing:-.01em;margin-bottom:10px">Release &amp; done</h3>
+        <p style="color:var(--dim);font-size:15px;line-height:1.6">Let go. An optional on-device LLM strips the "ums", fixes punctuation, then pastes clean text — clipboard restored.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- PRIVACY -->
+  <section id="privacy" style="position:relative;z-index:1;padding:110px 24px">
+    <div class="dh-grid2" style="max-width:1120px;margin:0 auto">
+      <div data-reveal>
+        <p style="font-family:var(--mono);font-size:13px;color:var(--violet2);letter-spacing:.14em;text-transform:uppercase;margin-bottom:16px">Private by construction</p>
+        <h2 style="font-size:clamp(32px,4.2vw,50px);font-weight:600;letter-spacing:-.025em;line-height:1.08;margin-bottom:22px">Nothing leaves<br>your Mac. <span style="font-family:var(--serif);font-style:italic;font-weight:400;color:var(--violet2)">By design.</span></h2>
+        <p style="color:var(--dim);font-size:17px;line-height:1.65;margin-bottom:26px">The binary makes zero network calls. Your voice is transcribed and polished entirely on-device using Apple's speech and language models. It's not a promise — it's auditable, open-source fact.</p>
+        <div style="display:flex;flex-direction:column;gap:14px">
+          <div style="display:flex;gap:12px;align-items:flex-start"><span style="color:var(--violet2);margin-top:2px">✓</span><span style="font-size:15px;color:var(--ink)">Audio is never recorded, stored, or uploaded</span></div>
+          <div style="display:flex;gap:12px;align-items:flex-start"><span style="color:var(--violet2);margin-top:2px">✓</span><span style="font-size:15px;color:var(--ink)">On-device ASR + on-device LLM — no API keys, ever</span></div>
+          <div style="display:flex;gap:12px;align-items:flex-start"><span style="color:var(--violet2);margin-top:2px">✓</span><span style="font-size:15px;color:var(--ink)">Transcripts live only in <span style="font-family:var(--mono);font-size:13px;color:var(--violet2)">~/Documents/Dhwani</span></span></div>
+        </div>
+      </div>
+      <div data-reveal data-delay="120" style="position:relative;padding:40px;border-radius:24px;border:1px solid var(--line);background:linear-gradient(160deg,rgba(139,92,246,.06),rgba(255,255,255,.01))">
+        <div style="border:1px dashed rgba(139,92,246,.4);border-radius:18px;padding:26px 22px">
+          <div style="font-family:var(--mono);font-size:11.5px;color:var(--violet2);letter-spacing:.1em;margin-bottom:20px;text-align:center">◱ YOUR MAC — THE BOUNDARY</div>
+          <div style="display:flex;flex-direction:column;gap:10px">
+            <div style="display:flex;align-items:center;gap:12px;padding:13px 16px;border-radius:12px;background:rgba(255,255,255,.04);border:1px solid var(--line)"><span style="font-size:17px">🎙️</span><span style="font-size:14px;color:var(--ink)">Microphone capture</span></div>
+            <div style="text-align:center;color:var(--dim);font-size:13px">↓</div>
+            <div style="display:flex;align-items:center;gap:12px;padding:13px 16px;border-radius:12px;background:rgba(255,255,255,.04);border:1px solid var(--line)"><span style="font-size:17px">🧠</span><span style="font-size:14px;color:var(--ink)">On-device speech &amp; AI polish</span></div>
+            <div style="text-align:center;color:var(--dim);font-size:13px">↓</div>
+            <div style="display:flex;align-items:center;gap:12px;padding:13px 16px;border-radius:12px;background:rgba(255,255,255,.04);border:1px solid var(--line)"><span style="font-size:17px">⌨️</span><span style="font-size:14px;color:var(--ink)">Pasted into your app</span></div>
+          </div>
+        </div>
+        <div style="margin-top:18px;display:flex;align-items:center;justify-content:center;gap:10px;padding:12px;border-radius:12px;background:rgba(255,80,80,.06);border:1px solid rgba(255,120,120,.18)">
+          <span style="font-size:16px;position:relative">☁️<span style="position:absolute;left:-4px;top:6px;width:26px;height:2px;background:#ff6b6b;transform:rotate(-20deg);border-radius:2px"></span></span>
+          <span style="font-size:13.5px;color:#ff9e9e">The cloud is never touched</span>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- FEATURES -->
+  <section id="features" style="position:relative;z-index:1;padding:100px 24px;max-width:1180px;margin:0 auto">
+    <div data-reveal style="text-align:center;margin-bottom:60px">
+      <p style="font-family:var(--mono);font-size:13px;color:var(--violet2);letter-spacing:.14em;text-transform:uppercase;margin-bottom:16px">Features</p>
+      <h2 style="font-size:clamp(32px,4.5vw,52px);font-weight:600;letter-spacing:-.025em;line-height:1.08">Small app. <span style="font-family:var(--serif);font-style:italic;font-weight:400;color:var(--violet2)">Serious craft.</span></h2>
+    </div>
+    <div class="dh-bento">
+      <div data-reveal class="dh-span4" style="padding:34px;border-radius:20px;border:1px solid var(--line);background:var(--card);display:flex;flex-direction:column;justify-content:space-between;min-height:220px">
+        <div style="display:flex;justify-content:space-between;align-items:flex-start">
+          <div><h3 style="font-size:23px;font-weight:600;letter-spacing:-.01em;margin-bottom:10px">AI Polish</h3><p style="color:var(--dim);font-size:15px;line-height:1.6;max-width:440px">An optional on-device LLM removes filler words, applies your self-corrections ("scratch that…"), and fixes punctuation before the text lands.</p></div>
+          <span style="font-size:26px">✦</span>
+        </div>
+        <div style="display:flex;gap:10px;margin-top:24px;font-family:var(--mono);font-size:13px;flex-wrap:wrap">
+          <span style="padding:7px 12px;border-radius:9px;background:rgba(255,80,80,.08);color:#ff9e9e;text-decoration:line-through">um, so like, send the… the report</span>
+          <span style="align-self:center;color:var(--dim)">→</span>
+          <span style="padding:7px 12px;border-radius:9px;background:rgba(139,92,246,.12);color:var(--violet2)">Send the report.</span>
+        </div>
+      </div>
+      <div data-reveal data-delay="100" class="dh-span2" style="padding:34px;border-radius:20px;border:1px solid var(--line);background:var(--card);min-height:220px">
+        <span style="font-size:24px">📄</span>
+        <h3 style="font-size:20px;font-weight:600;letter-spacing:-.01em;margin:16px 0 10px">Transcript repository</h3>
+        <p style="color:var(--dim);font-size:14.5px;line-height:1.6">Every dictation is appended to a daily markdown file. Nothing is ever lost — copy anything back, anytime.</p>
+      </div>
+      <div data-reveal class="dh-span2" style="padding:34px;border-radius:20px;border:1px solid var(--line);background:var(--card);min-height:200px">
+        <span style="font-size:24px">🖥️</span>
+        <h3 style="font-size:20px;font-weight:600;letter-spacing:-.01em;margin:16px 0 10px">Works in every app</h3>
+        <p style="color:var(--dim);font-size:14.5px;line-height:1.6">Slack, Mail, VS Code, your browser — inserts via paste simulation with your clipboard saved and restored.</p>
+      </div>
+      <div data-reveal data-delay="100" class="dh-span2" style="padding:34px;border-radius:20px;border:1px solid var(--line);background:var(--card);min-height:200px">
+        <span style="font-size:24px">📊</span>
+        <h3 style="font-size:20px;font-weight:600;letter-spacing:-.01em;margin:16px 0 10px">Daily activity stats</h3>
+        <p style="color:var(--dim);font-size:14.5px;line-height:1.6">Words and notes today and all-time, right in the menu bar. Watch your dictation habit compound.</p>
+      </div>
+      <div data-reveal data-delay="200" class="dh-span2" style="padding:34px;border-radius:20px;border:1px solid var(--line);background:var(--card);min-height:200px">
+        <span style="font-size:24px">🕑</span>
+        <h3 style="font-size:20px;font-weight:600;letter-spacing:-.01em;margin:16px 0 10px">Recent transcripts</h3>
+        <p style="color:var(--dim);font-size:14.5px;line-height:1.6">Click any recent dictation from the menu bar to copy it straight back to your clipboard.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- COMPARISON -->
+  <section id="compare" style="position:relative;z-index:1;padding:100px 24px;max-width:1000px;margin:0 auto">
+    <div data-reveal style="text-align:center;margin-bottom:56px">
+      <p style="font-family:var(--mono);font-size:13px;color:var(--violet2);letter-spacing:.14em;text-transform:uppercase;margin-bottom:16px">The honest comparison</p>
+      <h2 style="font-size:clamp(32px,4.5vw,52px);font-weight:600;letter-spacing:-.025em;line-height:1.08">The core experience, <span style="font-family:var(--serif);font-style:italic;font-weight:400;color:var(--violet2)">for free.</span></h2>
+    </div>
+    <div class="dh-grid2c">
+      <div data-reveal style="padding:36px;border-radius:22px;border:1px solid rgba(139,92,246,.45);background:linear-gradient(165deg,rgba(139,92,246,.10),rgba(255,255,255,.01));box-shadow:0 20px 60px rgba(139,92,246,.14)">
+        <div style="display:flex;align-items:center;gap:11px;margin-bottom:8px">
+          <span style="display:inline-flex;align-items:center;justify-content:center;width:30px;height:30px;border-radius:9px;background:linear-gradient(140deg,var(--violet),var(--indigo))"><span style="font-family:var(--deva);font-size:18px;line-height:1;color:#fff;transform:translateY(1px)">ध</span></span>
+          <span style="font-size:20px;font-weight:600">Dhwani</span>
+        </div>
+        <div style="font-size:38px;font-weight:700;letter-spacing:-.02em;margin-bottom:24px">$0<span style="font-size:16px;font-weight:400;color:var(--dim)"> / forever</span></div>
+        <div style="display:flex;flex-direction:column;gap:13px;font-size:15px">
+          <div style="display:flex;gap:11px"><span style="color:var(--violet2)">✓</span>100% on-device — audio never leaves your Mac</div>
+          <div style="display:flex;gap:11px"><span style="color:var(--violet2)">✓</span>Push-to-talk, formatted text, any app</div>
+          <div style="display:flex;gap:11px"><span style="color:var(--violet2)">✓</span>Full transcript history, yours forever</div>
+          <div style="display:flex;gap:11px"><span style="color:var(--violet2)">✓</span>Open source, MIT, auditable</div>
+        </div>
+      </div>
+      <div data-reveal data-delay="120" style="padding:36px;border-radius:22px;border:1px solid var(--line);background:var(--card)">
+        <div style="font-size:20px;font-weight:600;margin-bottom:8px;color:var(--dim)">Wispr Flow</div>
+        <div style="font-size:38px;font-weight:700;letter-spacing:-.02em;margin-bottom:24px;color:var(--dim)">$15–20<span style="font-size:16px;font-weight:400"> / month</span></div>
+        <div style="display:flex;flex-direction:column;gap:13px;font-size:15px;color:var(--dim)">
+          <div style="display:flex;gap:11px"><span>☁️</span>Audio processed in their cloud</div>
+          <div style="display:flex;gap:11px"><span style="color:var(--violet2)">✓</span>Tone-matching &amp; per-app formatting</div>
+          <div style="display:flex;gap:11px"><span style="color:var(--violet2)">✓</span>100+ languages, cross-platform</div>
+          <div style="display:flex;gap:11px"><span>◻</span>Closed source</div>
+        </div>
+      </div>
+    </div>
+    <p data-reveal style="text-align:center;color:var(--dim);font-size:14.5px;margin-top:30px;max-width:620px;margin-left:auto;margin-right:auto">Wispr Flow is genuinely excellent. If you want cloud tone-matching and 100+ languages, pay them. If you want fast, private dictation that's yours forever — build Dhwani.</p>
+  </section>
+
+  <!-- DOWNLOAD / SETUP -->
+  <section id="download" style="position:relative;z-index:1;padding:100px 24px;max-width:1120px;margin:0 auto">
+    <div class="dh-grid2d">
+      <div data-reveal>
+        <p style="font-family:var(--mono);font-size:13px;color:var(--violet2);letter-spacing:.14em;text-transform:uppercase;margin-bottom:16px">Get started</p>
+        <h2 style="font-size:clamp(30px,4vw,46px);font-weight:600;letter-spacing:-.025em;line-height:1.1;margin-bottom:20px">Build it &amp; run it<br>in two commands.</h2>
+        <p style="color:var(--dim);font-size:16px;line-height:1.65;margin-bottom:26px">Clone the repo, run the build script, and open the app. Optionally drop it into <span style="font-family:var(--mono);font-size:13px;color:var(--violet2)">/Applications</span> for launch-at-login.</p>
+        <div style="border-radius:16px;border:1px solid var(--line);background:#0a0b16;overflow:hidden;box-shadow:0 16px 50px rgba(0,0,0,.5)">
+          <div style="display:flex;align-items:center;gap:7px;padding:13px 16px;border-bottom:1px solid var(--line)">
+            <span style="width:11px;height:11px;border-radius:50%;background:#ff5f57"></span><span style="width:11px;height:11px;border-radius:50%;background:#febc2e"></span><span style="width:11px;height:11px;border-radius:50%;background:#28c840"></span>
+            <span style="margin-left:8px;font-family:var(--mono);font-size:12px;color:var(--dim)">Terminal</span>
+          </div>
+          <div style="padding:20px;font-family:var(--mono);font-size:13.5px;line-height:2;overflow-x:auto">
+            <div style="color:var(--dim)"># build the app</div>
+            <div><span style="color:var(--violet2)">$</span> ./scripts/build_app.sh</div>
+            <div style="color:var(--dim);margin-top:10px"># launch it</div>
+            <div><span style="color:var(--violet2)">$</span> open dist/Dhwani.app</div>
+          </div>
+        </div>
+        <div style="display:flex;gap:12px;margin-top:24px;flex-wrap:wrap">
+          <a href="https://github.com/gsp9145/dhwani" style="display:inline-flex;align-items:center;gap:9px;padding:14px 24px;border-radius:12px;background:linear-gradient(140deg,var(--violet),var(--indigo));color:#fff;text-decoration:none;font-size:15px;font-weight:600;box-shadow:0 10px 30px rgba(139,92,246,.4)">Clone on GitHub</a>
+          <span style="align-self:center;font-family:var(--mono);font-size:12.5px;color:var(--dim)">requires Xcode CLT · xcode-select --install</span>
+        </div>
+      </div>
+      <div data-reveal data-delay="120">
+        <h3 style="font-size:20px;font-weight:600;margin-bottom:22px">First-run setup</h3>
+        <div style="display:flex;flex-direction:column;gap:14px">
+          <div style="display:flex;gap:16px;padding:20px;border-radius:16px;border:1px solid var(--line);background:var(--card)">
+            <span style="font-family:var(--mono);font-size:13px;color:var(--violet2);flex-shrink:0">01</span>
+            <div><div style="font-weight:600;font-size:15.5px;margin-bottom:4px">Grant Accessibility</div><div style="color:var(--dim);font-size:14px;line-height:1.55">Lets Dhwani see the dictation key globally and paste for you.</div></div>
+          </div>
+          <div style="display:flex;gap:16px;padding:20px;border-radius:16px;border:1px solid var(--line);background:var(--card)">
+            <span style="font-family:var(--mono);font-size:13px;color:var(--violet2);flex-shrink:0">02</span>
+            <div><div style="font-weight:600;font-size:15.5px;margin-bottom:4px">Approve the mic</div><div style="color:var(--dim);font-size:14px;line-height:1.55">One standard macOS microphone permission prompt.</div></div>
+          </div>
+          <div style="display:flex;gap:16px;padding:20px;border-radius:16px;border:1px solid var(--line);background:var(--card)">
+            <span style="font-family:var(--mono);font-size:13px;color:var(--violet2);flex-shrink:0">03</span>
+            <div><div style="font-weight:600;font-size:15.5px;margin-bottom:4px">Free the 🌐 key</div><div style="color:var(--dim);font-size:14px;line-height:1.55">Set "Press 🌐 key to → Do Nothing" so Fn triggers dictation, not emoji.</div></div>
+          </div>
+          <div style="display:flex;gap:16px;padding:20px;border-radius:16px;border:1px solid var(--line);background:var(--card)">
+            <span style="font-family:var(--mono);font-size:13px;color:var(--violet2);flex-shrink:0">04</span>
+            <div><div style="font-weight:600;font-size:15.5px;margin-bottom:4px">One-time model download</div><div style="color:var(--dim);font-size:14px;line-height:1.55">Apple's on-device speech model downloads once (~a few hundred MB), via Apple.</div></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- OPEN SOURCE -->
+  <section id="opensource" style="position:relative;z-index:1;padding:60px 24px 110px;max-width:1120px;margin:0 auto">
+    <div data-reveal style="position:relative;overflow:hidden;padding:60px 44px;border-radius:28px;border:1px solid rgba(139,92,246,.3);background:linear-gradient(155deg,rgba(139,92,246,.14),rgba(99,102,241,.06) 60%,rgba(255,255,255,.01));text-align:center">
+      <div style="position:absolute;top:-40%;left:50%;transform:translateX(-50%);width:600px;height:600px;background:radial-gradient(circle,rgba(139,92,246,.25),transparent 65%);pointer-events:none"></div>
+      <div style="position:relative;z-index:1;display:flex;flex-direction:column;align-items:center">
+        <span style="display:inline-flex;align-items:center;justify-content:center;width:60px;height:60px;border-radius:18px;background:linear-gradient(140deg,var(--violet),var(--indigo));box-shadow:0 12px 34px rgba(139,92,246,.5);margin-bottom:26px">
+          <span style="font-family:var(--deva);font-size:38px;line-height:1;color:#fff;transform:translateY(2px)">ध</span>
+        </span>
+        <h2 style="font-size:clamp(30px,4.2vw,50px);font-weight:600;letter-spacing:-.025em;line-height:1.08;margin-bottom:18px">Free, offline, and <span style="font-family:var(--serif);font-style:italic;font-weight:400;color:var(--violet2)">yours forever.</span></h2>
+        <p style="max-width:560px;color:var(--dim);font-size:17px;line-height:1.65;margin-bottom:32px">Dhwani is MIT-licensed and auditable end to end. Read the source, build it yourself, fork it, ship your own dictation key. No accounts, no telemetry, no catch.</p>
+        <div style="display:flex;gap:14px;flex-wrap:wrap;justify-content:center;margin-bottom:38px">
+          <a href="https://github.com/gsp9145/dhwani" style="display:inline-flex;align-items:center;gap:10px;padding:15px 26px;border-radius:13px;background:#fff;color:#08090f;text-decoration:none;font-size:16px;font-weight:600;white-space:nowrap">
+            <svg width="18" height="18" viewBox="0 0 16 16" fill="currentColor"><path d="M8 0C3.58 0 0 3.58 0 8a8 8 0 0 0 5.47 7.59c.4.07.55-.17.55-.38v-1.34c-2.23.49-2.7-1.07-2.7-1.07-.36-.93-.89-1.18-.89-1.18-.73-.5.05-.49.05-.49.81.06 1.23.83 1.23.83.72 1.23 1.88.87 2.34.67.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.01.08-2.12 0 0 .67-.21 2.2.82a7.6 7.6 0 0 1 4 0c1.53-1.03 2.2-.82 2.2-.82.44 1.11.16 1.92.08 2.12.51.56.82 1.28.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48v2.2c0 .21.15.46.55.38A8 8 0 0 0 16 8c0-4.42-3.58-8-8-8Z"/></svg>
+            View on GitHub
+          </a>
+          <a href="https://github.com/gsp9145/dhwani/releases/latest" style="display:inline-flex;align-items:center;gap:10px;padding:15px 26px;border-radius:13px;border:1px solid rgba(255,255,255,.2);background:rgba(255,255,255,.03);color:var(--ink);text-decoration:none;font-size:16px;font-weight:600">Download for macOS</a>
+        </div>
+        <div style="display:flex;gap:10px;flex-wrap:wrap;justify-content:center;font-family:var(--mono);font-size:12.5px;color:var(--dim)">
+          <span style="padding:7px 13px;border-radius:100px;border:1px solid var(--line)">Hands-free toggle mode</span>
+          <span style="padding:7px 13px;border-radius:100px;border:1px solid var(--line)">Personal dictionary</span>
+          <span style="padding:7px 13px;border-radius:100px;border:1px solid var(--line)">Per-app profiles</span>
+          <span style="padding:7px 13px;border-radius:100px;border:1px solid var(--line)">Command mode</span>
+          <span style="padding:7px 13px;border-radius:100px;border:1px solid var(--line)">History search</span>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- FOOTER -->
+  <footer style="position:relative;z-index:1;border-top:1px solid var(--line);padding:44px 40px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:18px">
+    <div style="display:flex;align-items:center;gap:12px">
+      <span style="display:inline-flex;align-items:center;justify-content:center;width:32px;height:32px;border-radius:10px;background:linear-gradient(140deg,var(--violet),var(--indigo))">
+        <span style="font-family:var(--deva);font-size:20px;line-height:1;color:#fff;transform:translateY(1px)">ध</span>
+      </span>
+      <div><div style="font-size:15px;font-weight:600">Dhwani</div><div style="font-family:var(--deva);font-size:14px;color:var(--dim)">ध्वनि — "sound"</div></div>
+    </div>
+    <div style="font-size:13.5px;color:var(--dim)">MIT licensed · Fully local · Built for macOS · No cloud, no catch</div>
+  </footer>
+
+</div>
+
+<script>
+(function () {
+  'use strict';
+  var ACCENT = '#8b5cf6';
+  var INTENSITY = 1.2;
+  var reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+  // ---- nav: frost on scroll ----
+  function initNav() {
+    var nav = document.getElementById('dh-nav');
+    function onScroll() {
+      if (window.scrollY > 24) {
+        nav.style.background = 'rgba(7,8,16,.72)';
+        nav.style.backdropFilter = 'blur(16px)';
+        nav.style.borderBottom = '1px solid var(--line)';
+      } else {
+        nav.style.background = 'transparent';
+        nav.style.backdropFilter = 'none';
+        nav.style.borderBottom = '1px solid transparent';
+      }
+    }
+    window.addEventListener('scroll', onScroll, { passive: true });
+    onScroll();
+  }
+
+  // ---- reveal-on-scroll ----
+  function initReveals() {
+    var els = document.querySelectorAll('#dhwani-root [data-reveal]');
+    els.forEach(function (el) {
+      if (reduce) { el.style.opacity = '1'; return; }
+      el.style.opacity = '0';
+      el.style.transform = 'translateY(26px)';
+      el.style.transition = 'opacity .85s cubic-bezier(.2,.7,.2,1), transform .85s cubic-bezier(.2,.7,.2,1)';
+      var d = parseInt(el.getAttribute('data-delay') || '0', 10);
+      el.style.transitionDelay = d + 'ms';
+    });
+    if (reduce) return;
+    var io = new IntersectionObserver(function (entries) {
+      entries.forEach(function (e) {
+        if (e.isIntersecting) {
+          e.target.style.opacity = '1';
+          e.target.style.transform = 'translateY(0)';
+          io.unobserve(e.target);
+        }
+      });
+    }, { threshold: 0.15, rootMargin: '0px 0px -8% 0px' });
+    els.forEach(function (el) { io.observe(el); });
+  }
+
+  // ---- Flow Bar demo: waveform + typing caption ----
+  function initPill() {
+    var wave = document.getElementById('dh-wave');
+    var caption = document.getElementById('dh-caption');
+    var N = 12;
+    var bars = [];
+    for (var i = 0; i < N; i++) {
+      var b = document.createElement('div');
+      b.style.cssText = 'width:3px;height:4px;border-radius:2px;background:linear-gradient(to top,var(--violet),var(--violet2));transition:height .06s linear';
+      wave.appendChild(b);
+      bars.push(b);
+    }
+    var heights = [];
+    for (var j = 0; j < N; j++) heights.push(0.1);
+    var phrases = [
+      'Ship the redesign by Friday and loop in the design team.',
+      'Reply to Priya — yes, the numbers look right to me.',
+      'Add a section on privacy to the launch doc.',
+      'Remind me to call the dentist tomorrow morning.'
+    ];
+
+    var pi = 0, ci = 0, mode = 'listen', modeT = 0;
+    caption.innerHTML = '<span style="color:var(--dim)">Listening…</span>';
+
+    function level() {
+      var t = performance.now() / 1000;
+      if (mode !== 'speak') return 0.12 + 0.06 * Math.abs(Math.sin(t * 1.6));
+      var env = 0.45 + 0.4 * Math.abs(Math.sin(t * 3.1)) * Math.abs(Math.sin(t * 1.3 + 1));
+      return Math.min(1, env);
+    }
+
+    var last = performance.now();
+    function tick() {
+      var now = performance.now();
+      var dt = now - last; last = now;
+      modeT += dt;
+      var lv = level();
+      for (var i = 0; i < N; i++) {
+        var envelope = Math.sin(i / (N - 1) * Math.PI);
+        var jitter = Math.abs(Math.sin(now / 240 + i * 1.9) * Math.sin(now / 380 + i * 0.4));
+        var target = Math.max(0.08, lv * envelope * (0.35 + 0.65 * jitter) + 0.05);
+        heights[i] = heights[i] * 0.55 + target * 0.45;
+        bars[i].style.height = Math.max(4, heights[i] * 24) + 'px';
+      }
+
+      if (mode === 'listen' && modeT > 900) { mode = 'speak'; modeT = 0; ci = 0; caption.textContent = ''; }
+      else if (mode === 'speak') {
+        var phrase = phrases[pi];
+        var shouldChars = Math.min(phrase.length, Math.floor(modeT / 42));
+        if (shouldChars !== ci) {
+          ci = shouldChars;
+          caption.innerHTML = phrase.slice(0, ci) + '<span style="display:inline-block;width:2px;height:15px;background:var(--violet2);margin-left:1px;vertical-align:-2px;animation:dh-blink 1s step-end infinite"></span>';
+        }
+        if (ci >= phrase.length) { mode = 'done'; modeT = 0; }
+      } else if (mode === 'done' && modeT > 260) {
+        var words = phrases[pi].split(' ').length;
+        caption.innerHTML = '<span style="color:var(--violet2)">✓ ' + words + ' words · pasted</span>';
+        mode = 'hold'; modeT = 0;
+      } else if (mode === 'hold' && modeT > 1900) {
+        pi = (pi + 1) % phrases.length;
+        mode = 'listen'; modeT = 0;
+        caption.innerHTML = '<span style="color:var(--dim)">Listening…</span>';
+      }
+
+      requestAnimationFrame(tick);
+    }
+    if (reduce) {
+      caption.textContent = phrases[0];
+      bars.forEach(function (b, i) { b.style.height = Math.max(4, Math.sin(i / (N - 1) * Math.PI) * 22) + 'px'; });
+    } else {
+      tick();
+    }
+  }
+
+  // ---- hero orb: noise-displaced sphere + wireframe + particles ----
+  function initOrb() {
+    var canvas = document.getElementById('dhwani-orb');
+    if (!canvas) return;
+    if (typeof THREE === 'undefined') { setTimeout(initOrb, 120); return; }
+
+    function hexToRgb(h) {
+      var m = h.replace('#', '');
+      return [parseInt(m.slice(0, 2), 16) / 255, parseInt(m.slice(2, 4), 16) / 255, parseInt(m.slice(4, 6), 16) / 255];
+    }
+    var cA = hexToRgb(ACCENT);
+    var cB = [0.43, 0.42, 0.95]; // indigo
+
+    var renderer = new THREE.WebGLRenderer({ canvas: canvas, alpha: true, antialias: true });
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+    var scene = new THREE.Scene();
+    var camera = new THREE.PerspectiveCamera(50, 1, 0.1, 100);
+    camera.position.z = 5.5;
+
+    function size() {
+      var w = canvas.clientWidth, h = canvas.clientHeight;
+      renderer.setSize(w, h, false);
+      camera.aspect = w / h; camera.updateProjectionMatrix();
+    }
+
+    var noiseGLSL = [
+      'vec3 mod289(vec3 x){return x-floor(x*(1.0/289.0))*289.0;}',
+      'vec4 mod289(vec4 x){return x-floor(x*(1.0/289.0))*289.0;}',
+      'vec4 permute(vec4 x){return mod289(((x*34.0)+1.0)*x);}',
+      'vec4 taylorInvSqrt(vec4 r){return 1.79284291400159-0.85373472095314*r;}',
+      'float snoise(vec3 v){',
+      '  const vec2 C=vec2(1.0/6.0,1.0/3.0);const vec4 D=vec4(0.0,0.5,1.0,2.0);',
+      '  vec3 i=floor(v+dot(v,C.yyy));vec3 x0=v-i+dot(i,C.xxx);',
+      '  vec3 g=step(x0.yzx,x0.xyz);vec3 l=1.0-g;vec3 i1=min(g.xyz,l.zxy);vec3 i2=max(g.xyz,l.zxy);',
+      '  vec3 x1=x0-i1+C.xxx;vec3 x2=x0-i2+C.yyy;vec3 x3=x0-D.yyy;',
+      '  i=mod289(i);',
+      '  vec4 p=permute(permute(permute(i.z+vec4(0.0,i1.z,i2.z,1.0))+i.y+vec4(0.0,i1.y,i2.y,1.0))+i.x+vec4(0.0,i1.x,i2.x,1.0));',
+      '  float n_=0.142857142857;vec3 ns=n_*D.wyz-D.xzx;',
+      '  vec4 j=p-49.0*floor(p*ns.z*ns.z);',
+      '  vec4 x_=floor(j*ns.z);vec4 y_=floor(j-7.0*x_);',
+      '  vec4 x=x_*ns.x+ns.yyyy;vec4 y=y_*ns.x+ns.yyyy;vec4 h=1.0-abs(x)-abs(y);',
+      '  vec4 b0=vec4(x.xy,y.xy);vec4 b1=vec4(x.zw,y.zw);',
+      '  vec4 s0=floor(b0)*2.0+1.0;vec4 s1=floor(b1)*2.0+1.0;vec4 sh=-step(h,vec4(0.0));',
+      '  vec4 a0=b0.xzyw+s0.xzyw*sh.xxyy;vec4 a1=b1.xzyw+s1.xzyw*sh.zzww;',
+      '  vec3 p0=vec3(a0.xy,h.x);vec3 p1=vec3(a0.zw,h.y);vec3 p2=vec3(a1.xy,h.z);vec3 p3=vec3(a1.zw,h.w);',
+      '  vec4 norm=taylorInvSqrt(vec4(dot(p0,p0),dot(p1,p1),dot(p2,p2),dot(p3,p3)));',
+      '  p0*=norm.x;p1*=norm.y;p2*=norm.z;p3*=norm.w;',
+      '  vec4 m=max(0.6-vec4(dot(x0,x0),dot(x1,x1),dot(x2,x2),dot(x3,x3)),0.0);m=m*m;',
+      '  return 42.0*dot(m*m,vec4(dot(p0,x0),dot(p1,x1),dot(p2,x2),dot(p3,x3)));',
+      '}'
+    ].join('\n');
+
+    var uniforms = {
+      uTime: { value: 0 },
+      uLevel: { value: 0 },
+      uAmp: { value: 0.42 * INTENSITY },
+      uColorA: { value: new THREE.Vector3(cA[0], cA[1], cA[2]) },
+      uColorB: { value: new THREE.Vector3(cB[0], cB[1], cB[2]) }
+    };
+
+    var vert = noiseGLSL + [
+      'uniform float uTime; uniform float uLevel; uniform float uAmp;',
+      'varying float vN; varying vec3 vNormal; varying vec3 vView;',
+      'void main(){',
+      '  float n1 = snoise(normal*1.4 + uTime*0.28);',
+      '  float n2 = snoise(normal*2.8 - uTime*0.42);',
+      '  float disp = (n1*0.6 + n2*0.3) * uAmp * (0.4 + uLevel*1.1);',
+      '  vec3 pos = position + normal*disp;',
+      '  vN = n1;',
+      '  vNormal = normalize(normalMatrix*normal);',
+      '  vec4 mv = modelViewMatrix*vec4(pos,1.0);',
+      '  vView = -mv.xyz;',
+      '  gl_Position = projectionMatrix*mv;',
+      '}'
+    ].join('\n');
+
+    var frag = [
+      'precision highp float;',
+      'uniform float uLevel; uniform vec3 uColorA; uniform vec3 uColorB;',
+      'varying float vN; varying vec3 vNormal; varying vec3 vView;',
+      'void main(){',
+      '  vec3 vd = normalize(vView);',
+      '  float fres = pow(1.0 - max(dot(vd, vNormal),0.0), 2.3);',
+      '  vec3 base = mix(uColorA, uColorB, vN*0.5+0.5);',
+      '  vec3 col = base*0.55 + fres*(uColorA*1.3 + vec3(0.25))*(1.1 + uLevel*1.4);',
+      '  gl_FragColor = vec4(col, 0.92);',
+      '}'
+    ].join('\n');
+
+    var geo = new THREE.IcosahedronGeometry(1.35, 32);
+    var mat = new THREE.ShaderMaterial({ uniforms: uniforms, vertexShader: vert, fragmentShader: frag, transparent: true });
+    var mesh = new THREE.Mesh(geo, mat);
+    scene.add(mesh);
+
+    var wireMat = new THREE.ShaderMaterial({
+      uniforms: uniforms, vertexShader: vert,
+      fragmentShader: 'precision highp float; uniform vec3 uColorA; void main(){ gl_FragColor = vec4(uColorA, 0.14); }',
+      wireframe: true, transparent: true, blending: THREE.AdditiveBlending, depthWrite: false
+    });
+    var wire = new THREE.Mesh(new THREE.IcosahedronGeometry(1.42, 10), wireMat);
+    scene.add(wire);
+
+    var pCount = Math.floor(1300 * INTENSITY);
+    var pGeo = new THREE.BufferGeometry();
+    var pos = new Float32Array(pCount * 3);
+    for (var i = 0; i < pCount; i++) {
+      var r = 2.4 + Math.random() * 4.5;
+      var th = Math.random() * Math.PI * 2;
+      var ph = Math.acos(2 * Math.random() - 1);
+      pos[i * 3] = r * Math.sin(ph) * Math.cos(th);
+      pos[i * 3 + 1] = r * Math.sin(ph) * Math.sin(th);
+      pos[i * 3 + 2] = r * Math.cos(ph);
+    }
+    pGeo.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+    var c = document.createElement('canvas'); c.width = c.height = 64;
+    var cx = c.getContext('2d');
+    var grd = cx.createRadialGradient(32, 32, 0, 32, 32, 32);
+    grd.addColorStop(0, 'rgba(255,255,255,1)'); grd.addColorStop(0.3, 'rgba(200,190,255,.8)'); grd.addColorStop(1, 'rgba(139,92,246,0)');
+    cx.fillStyle = grd; cx.fillRect(0, 0, 64, 64);
+    var spriteTex = new THREE.CanvasTexture(c);
+    var pMat = new THREE.PointsMaterial({ size: 0.055, map: spriteTex, transparent: true, blending: THREE.AdditiveBlending, depthWrite: false, opacity: 0.9 });
+    var points = new THREE.Points(pGeo, pMat);
+    scene.add(points);
+
+    size();
+    window.addEventListener('resize', size);
+
+    var mx = 0, my = 0, tmx = 0, tmy = 0;
+    window.addEventListener('mousemove', function (e) {
+      tmx = (e.clientX / window.innerWidth - 0.5);
+      tmy = (e.clientY / window.innerHeight - 0.5);
+    }, { passive: true });
+
+    var clock = new THREE.Clock();
+    var smoothLevel = 0;
+    function animate() {
+      var t = clock.getElapsedTime();
+      var raw = 0.2 + 0.25 * Math.abs(Math.sin(t * 1.7)) + 0.2 * Math.abs(Math.sin(t * 3.3 + 1.0)) * Math.abs(Math.sin(t * 0.9));
+      smoothLevel += (raw - smoothLevel) * 0.08;
+      uniforms.uTime.value = t;
+      uniforms.uLevel.value = smoothLevel;
+      mx += (tmx - mx) * 0.05; my += (tmy - my) * 0.05;
+      mesh.rotation.y = t * 0.12 + mx * 0.5;
+      mesh.rotation.x = my * 0.4;
+      wire.rotation.copy(mesh.rotation);
+      wire.rotation.y += 0.15;
+      var s = 1 + smoothLevel * 0.05;
+      mesh.scale.setScalar(s); wire.scale.setScalar(s);
+      points.rotation.y = t * 0.03;
+      points.rotation.x = t * 0.01;
+      camera.position.x += (mx * 0.4 - camera.position.x) * 0.05;
+      camera.position.y += (-my * 0.3 - camera.position.y) * 0.05;
+      camera.lookAt(0, 0, 0);
+      renderer.render(scene, camera);
+      requestAnimationFrame(animate);
+    }
+    if (reduce) {
+      uniforms.uLevel.value = 0.3;
+      renderer.render(scene, camera);
+    } else {
+      animate();
+    }
+  }
+
+  function init() {
+    initNav();
+    initReveals();
+    initPill();
+    initOrb();
+  }
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', init);
+  } else {
+    init();
+  }
+})();
+</script>
+</body>
+</html>

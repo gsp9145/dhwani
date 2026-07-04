@@ -3,3 +3,7 @@ dist/
 .DS_Store
 *.db
 .swiftpm/
+
+# design handoff source (not published)
+wispr-flow-alternative-website-design/
+*.zip
