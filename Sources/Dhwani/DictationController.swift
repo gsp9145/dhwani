@@ -210,6 +210,7 @@ final class DictationController {
                 text = polished
             }
             guard gen == self.generation else { return } // cancelled during polish
+            text = PersonalDictionary.shared.applyReplacements(to: text)
 
             let durationMs = Int(Date().timeIntervalSince(self.startedAt) * 1000)
             let inserted = TextInserter.insert(text)

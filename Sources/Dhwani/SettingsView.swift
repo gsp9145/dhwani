@@ -1,11 +1,25 @@
 import SwiftUI
 import ServiceManagement
 
-/// The Settings window content: a System Settings-style grouped form.
-/// Backed by the same UserDefaults keys the Settings singleton reads, so
-/// changes apply to the running dictation pipeline immediately.
+/// The Settings window: General + Dictionary tabs.
 @available(macOS 26.0, *)
 struct SettingsView: View {
+    var body: some View {
+        TabView {
+            GeneralSettingsView()
+                .tabItem { Label("General", systemImage: "gearshape") }
+            DictionarySettingsView()
+                .tabItem { Label("Dictionary", systemImage: "character.book.closed") }
+        }
+        .frame(width: 480, height: 620)
+    }
+}
+
+/// General tab: a System Settings-style grouped form. Backed by the same
+/// UserDefaults keys the Settings singleton reads, so changes apply to the
+/// running dictation pipeline immediately.
+@available(macOS 26.0, *)
+struct GeneralSettingsView: View {
     @AppStorage("holdKey") private var holdKey = HoldKey.fn.rawValue
     @AppStorage("insertMode") private var insertMode = InsertMode.paste.rawValue
     @AppStorage("aiPolish") private var aiPolish = false
@@ -87,7 +101,6 @@ struct SettingsView: View {
             }
         }
         .formStyle(.grouped)
-        .frame(width: 460, height: 620)
         .onAppear(perform: reload)
         .onReceive(refresh) { _ in reload() }
     }
@@ -115,5 +128,106 @@ struct SettingsView: View {
         launchAtLogin = SMAppService.mainApp.status == .enabled
         todayStats = HistoryStore.shared.todayStats()
         totalStats = HistoryStore.shared.totalStats()
+    }
+}
+
+/// Dictionary tab: vocabulary the speech engine is biased toward, plus
+/// find→replace rules applied to the final text.
+@available(macOS 26.0, *)
+struct DictionarySettingsView: View {
+    @State private var vocabulary: [String] = []
+    @State private var rules: [PersonalDictionary.Rule] = []
+    @State private var newWord = ""
+    @State private var newFrom = ""
+    @State private var newTo = ""
+
+    var body: some View {
+        Form {
+            Section {
+                ForEach(vocabulary, id: \.self) { word in
+                    HStack {
+                        Text(word)
+                        Spacer()
+                        Button {
+                            PersonalDictionary.shared.removeWord(word)
+                            reload()
+                        } label: {
+                            Image(systemName: "minus.circle.fill")
+                                .foregroundStyle(.secondary)
+                        }
+                        .buttonStyle(.plain)
+                        .help("Remove \"\(word)\"")
+                    }
+                }
+                HStack {
+                    TextField("Add a name or word…", text: $newWord)
+                        .onSubmit(addWord)
+                    Button("Add", action: addWord)
+                        .disabled(newWord.trimmingCharacters(in: .whitespaces).isEmpty)
+                }
+            } header: {
+                Text("Vocabulary")
+            } footer: {
+                Text("Hinted to the on-device speech engine so names, products, and jargon are recognized correctly. Takes effect on your next dictation.")
+            }
+
+            Section {
+                ForEach(rules) { rule in
+                    HStack {
+                        Text(rule.from)
+                        Image(systemName: "arrow.right")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                        Text(rule.to)
+                            .fontWeight(.medium)
+                        Spacer()
+                        Button {
+                            PersonalDictionary.shared.removeRule(rule)
+                            reload()
+                        } label: {
+                            Image(systemName: "minus.circle.fill")
+                                .foregroundStyle(.secondary)
+                        }
+                        .buttonStyle(.plain)
+                        .help("Remove rule")
+                    }
+                }
+                HStack {
+                    TextField("When it hears…", text: $newFrom)
+                    Image(systemName: "arrow.right")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                    TextField("write…", text: $newTo)
+                        .onSubmit(addRule)
+                    Button("Add", action: addRule)
+                        .disabled(newFrom.trimmingCharacters(in: .whitespaces).isEmpty ||
+                                  newTo.trimmingCharacters(in: .whitespaces).isEmpty)
+                }
+            } header: {
+                Text("Replacements")
+            } footer: {
+                Text("Applied to the finished text, whole words, any capitalization — for whatever the engine still gets wrong.")
+            }
+        }
+        .formStyle(.grouped)
+        .onAppear(perform: reload)
+    }
+
+    private func addWord() {
+        PersonalDictionary.shared.addWord(newWord)
+        newWord = ""
+        reload()
+    }
+
+    private func addRule() {
+        PersonalDictionary.shared.addRule(from: newFrom, to: newTo)
+        newFrom = ""
+        newTo = ""
+        reload()
+    }
+
+    private func reload() {
+        vocabulary = PersonalDictionary.shared.vocabulary
+        rules = PersonalDictionary.shared.replacements
     }
 }

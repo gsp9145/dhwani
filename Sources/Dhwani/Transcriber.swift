@@ -80,7 +80,14 @@ final class TranscriptionSession {
         resultsTask = Task { [weak self] in
             await self?.consumeResults()
         }
+        // Bias recognition toward the user's vocabulary (names, jargon).
+        let vocabulary = PersonalDictionary.shared.vocabulary
         startTask = Task { [analyzer, stream] in
+            if !vocabulary.isEmpty {
+                let context = AnalysisContext()
+                context.contextualStrings = [.general: vocabulary]
+                try? await analyzer.setContext(context)
+            }
             try await analyzer.start(inputSequence: stream)
         }
     }
