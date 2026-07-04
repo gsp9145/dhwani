@@ -43,6 +43,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         hotkeys.onHoldEnded = { [weak self] in self?.dictation.stopDictation() }
         hotkeys.onCancel = { [weak self] in self?.dictation.cancelDictation() }
         hotkeys.onHandsFreeLocked = { [weak self] in self?.dictation.lockHandsFree() }
+        hotkeys.onTapTimeout = { [weak self] in self?.dictation.dismissAccidentalTap() }
         dictation.hotkeyStillHeld = { [weak self] in self?.hotkeys.isKeyCurrentlyDown ?? false }
 
         if Permissions.accessibilityGranted, hotkeys.start() {

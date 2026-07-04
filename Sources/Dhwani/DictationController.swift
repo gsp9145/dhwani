@@ -163,6 +163,12 @@ final class DictationController {
         maxDurationTimer = timer
         HUD.shared.setHandsFree(true)
         Sounds.start()
+        // Announce the lock briefly, then return to the (red) waveform.
+        HUD.shared.show(.info("Locked on — tap \(Settings.shared.holdKey.shortName) to finish · Esc cancels"))
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1.4) { [weak self] in
+            guard let self, self.state == .recording else { return }
+            HUD.shared.show(.listening)
+        }
     }
 
     func stopDictation() {
@@ -224,14 +230,26 @@ final class DictationController {
 
     func cancelDictation() {
         guard state != .idle else { return }
+        teardownSession()
+        HUD.shared.show(.info("Canceled"))
+        HUD.shared.hide(after: 0.7)
+    }
+
+    /// A lone quick tap of the hotkey: not a gesture, so teach instead of alarm.
+    func dismissAccidentalTap() {
+        guard state != .idle else { return }
+        teardownSession()
+        HUD.shared.show(.info("Hold \(Settings.shared.holdKey.shortName) to dictate · double-tap to lock hands-free"))
+        HUD.shared.hide(after: 1.8)
+    }
+
+    private func teardownSession() {
         generation += 1 // any in-flight pipeline abandons at its next check
         pendingStart = false
         maxDurationTimer?.invalidate()
         recorder?.stop()
         session?.cancel()
         HUD.shared.setHandsFree(false)
-        HUD.shared.show(.info("Canceled"))
-        HUD.shared.hide(after: 0.7)
         reset()
     }
 

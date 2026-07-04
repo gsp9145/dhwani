@@ -17,6 +17,8 @@ final class HotkeyManager {
     var onCancel: (() -> Void)?
     /// Fired when a double-tap locks hands-free recording.
     var onHandsFreeLocked: (() -> Void)?
+    /// Fired when a lone quick tap expires — an accidental press, not a gesture.
+    var onTapTimeout: (() -> Void)?
     /// Should return true while a dictation is in flight (recording or processing).
     var isRecording: (() -> Bool)?
 
@@ -40,7 +42,10 @@ final class HotkeyManager {
     /// Armed after a quick tap: recording keeps running while we wait to see
     /// whether a second tap locks hands-free; on expiry the tap was accidental.
     private var doubleTapTimer: Timer?
-    /// Consume the key-up of the tap that locked or stopped hands-free.
+    /// The press after a quick tap: a quick release locks hands-free, but a
+    /// long hold means the user is just dictating (tap-then-hold ≠ double-tap).
+    private var inSecondTap = false
+    /// Consume the key-up of the tap that stopped hands-free.
     private var swallowNextRelease = false
 
     @discardableResult
@@ -95,13 +100,14 @@ final class HotkeyManager {
             return
         }
         if doubleTapTimer != nil {
-            // Second tap inside the window — lock hands-free; recording has
-            // been running since the first tap's key-down.
+            // Second press inside the window; recording has been running since
+            // the first tap's key-down. Whether this locks hands-free is
+            // decided on its release: quick tap = lock, long hold = the user
+            // is just dictating.
             doubleTapTimer?.invalidate()
             doubleTapTimer = nil
-            isHandsFree = true
-            swallowNextRelease = true
-            onHandsFreeLocked?()
+            inSecondTap = true
+            downAt = Date()
             return
         }
         gestureKey = key
@@ -116,6 +122,21 @@ final class HotkeyManager {
             return
         }
         let held = -(downAt?.timeIntervalSinceNow ?? 0)
+
+        if inSecondTap {
+            inSecondTap = false
+            downAt = nil
+            if held < Self.minimumHold {
+                // Genuine double-tap: lock hands-free, keep recording.
+                isHandsFree = true
+                onHandsFreeLocked?()
+            } else {
+                // Tap-then-hold: an ordinary dictation — insert on release.
+                gestureKey = nil
+                onHoldEnded?()
+            }
+            return
+        }
         downAt = nil
 
         if held < Self.minimumHold {
@@ -125,7 +146,7 @@ final class HotkeyManager {
                 guard let self else { return }
                 self.doubleTapTimer = nil
                 self.gestureKey = nil
-                self.onCancel?() // lone quick tap — accidental press
+                self.onTapTimeout?() // lone quick tap — accidental press
             }
             RunLoop.main.add(timer, forMode: .common)
             doubleTapTimer = timer
@@ -139,6 +160,7 @@ final class HotkeyManager {
         doubleTapTimer?.invalidate()
         doubleTapTimer = nil
         isHandsFree = false
+        inSecondTap = false
         swallowNextRelease = false
         keyIsDown = false
         downAt = nil
