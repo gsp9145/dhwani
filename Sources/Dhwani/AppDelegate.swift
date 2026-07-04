@@ -45,21 +45,21 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         dictation.hotkeyStillHeld = { [weak self] in self?.hotkeys.isKeyCurrentlyDown ?? false }
 
         if Permissions.accessibilityGranted, hotkeys.start() {
-            NSLog("FreeFlow: event tap armed at launch")
+            NSLog("Dhwani: event tap armed at launch")
             return
         }
-        NSLog("FreeFlow: waiting for Accessibility (granted=\(Permissions.accessibilityGranted)) — polling")
+        NSLog("Dhwani: waiting for Accessibility (granted=\(Permissions.accessibilityGranted)) — polling")
         // Poll until the user grants Accessibility, then arm the tap.
         let timer = Timer(timeInterval: 2, repeats: true) { [weak self] timer in
             guard let self, Permissions.accessibilityGranted else { return }
             if self.hotkeys.start() {
-                NSLog("FreeFlow: Accessibility granted — event tap armed")
+                NSLog("Dhwani: Accessibility granted — event tap armed")
                 timer.invalidate()
                 self.accessibilityRetryTimer = nil
-                HUD.shared.show(.info("FreeFlow armed — hold \(Settings.shared.holdKey.shortName) to dictate"))
+                HUD.shared.show(.info("Dhwani armed — hold \(Settings.shared.holdKey.shortName) to dictate"))
                 HUD.shared.hide(after: 2.5)
             } else {
-                NSLog("FreeFlow: Accessibility reported granted but tap creation failed — will retry")
+                NSLog("Dhwani: Accessibility reported granted but tap creation failed — will retry")
             }
         }
         RunLoop.main.add(timer, forMode: .common)
@@ -71,7 +71,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     private func setupStatusItem() {
         statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.squareLength)
         if let button = statusItem.button {
-            button.image = NSImage(systemSymbolName: "waveform.circle", accessibilityDescription: "FreeFlow")
+            button.image = NSImage(systemSymbolName: "waveform.circle", accessibilityDescription: "Dhwani")
         }
         let menu = NSMenu()
         menu.delegate = self
@@ -83,7 +83,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             guard let button = self.statusItem.button else { return }
             switch state {
             case .idle:
-                button.image = NSImage(systemSymbolName: "waveform.circle", accessibilityDescription: "FreeFlow")
+                button.image = NSImage(systemSymbolName: "waveform.circle", accessibilityDescription: "Dhwani")
                 button.contentTintColor = nil
             case .recording:
                 button.image = NSImage(systemSymbolName: "waveform.circle.fill", accessibilityDescription: "Recording")
@@ -212,7 +212,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         permissionsItem.target = self
         menu.addItem(permissionsItem)
 
-        let quitItem = NSMenuItem(title: "Quit FreeFlow", action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q")
+        let quitItem = NSMenuItem(title: "Quit Dhwani", action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q")
         menu.addItem(quitItem)
     }
 
@@ -275,7 +275,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         } catch {
             let alert = NSAlert()
             alert.messageText = "Couldn't change Launch at Login"
-            alert.informativeText = "\(error.localizedDescription)\n\nTip: move FreeFlow.app into /Applications first."
+            alert.informativeText = "\(error.localizedDescription)\n\nTip: move Dhwani.app into /Applications first."
             NSApp.activate(ignoringOtherApps: true)
             alert.runModal()
         }
@@ -295,9 +295,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     @objc private func showOnboarding() {
         NSApp.activate(ignoringOtherApps: true)
         let alert = NSAlert()
-        alert.messageText = "Set up FreeFlow"
+        alert.messageText = "Set up Dhwani"
         alert.informativeText = """
-        FreeFlow turns speech into text in any app: hold \(Settings.shared.holdKey.shortName), talk, release. \
+        Dhwani turns speech into text in any app: hold \(Settings.shared.holdKey.shortName), talk, release. \
         Everything runs on this Mac — no audio ever leaves it.
 
         It needs two permissions:

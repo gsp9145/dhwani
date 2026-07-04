@@ -64,7 +64,7 @@ final class DictationController {
             } catch {
                 HUD.shared.show(.error("Speech model download failed — will retry next time you dictate"))
                 HUD.shared.hide(after: 4)
-                NSLog("FreeFlow: asset install failed: \(error)")
+                NSLog("Dhwani: asset install failed: \(error)")
             }
         }
     }
@@ -167,7 +167,7 @@ final class DictationController {
                 (try? await session.finishAndCollect()) ?? ""
             }
             if collected == nil {
-                NSLog("FreeFlow: transcription stalled; abandoning session")
+                NSLog("Dhwani: transcription stalled; abandoning session")
                 session.cancel()
             }
             guard gen == self.generation else { return } // cancelled meanwhile

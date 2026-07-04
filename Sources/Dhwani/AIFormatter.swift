@@ -4,7 +4,7 @@ import FoundationModels
 #endif
 
 /// Optional cleanup pass over the raw transcript using Apple's on-device LLM —
-/// FreeFlow's equivalent of Wispr Flow's formatting layer, with zero cloud calls.
+/// Dhwani's equivalent of Wispr Flow's formatting layer, with zero cloud calls.
 enum AIFormatter {
     static var isAvailable: Bool {
         #if canImport(FoundationModels)
@@ -44,7 +44,7 @@ enum AIFormatter {
                 let session = LanguageModelSession(instructions: instructions)
                 return try await session.respond(to: text).content
             } catch {
-                NSLog("FreeFlow: AI polish failed: \(error)")
+                NSLog("Dhwani: AI polish failed: \(error)")
                 return nil
             }
         } ?? nil

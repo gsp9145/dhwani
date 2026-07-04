@@ -137,7 +137,7 @@ final class TranscriptionSession {
                 }
             }
         } catch {
-            NSLog("FreeFlow: transcriber results ended with error: \(error)")
+            NSLog("Dhwani: transcriber results ended with error: \(error)")
         }
     }
 }

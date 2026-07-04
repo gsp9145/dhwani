@@ -2,12 +2,12 @@
 import PackageDescription
 
 let package = Package(
-    name: "FreeFlow",
+    name: "Dhwani",
     platforms: [.macOS("26.0")],
     targets: [
         .executableTarget(
-            name: "FreeFlow",
-            path: "Sources/FreeFlow",
+            name: "Dhwani",
+            path: "Sources/Dhwani",
             swiftSettings: [.swiftLanguageMode(.v5)]
         )
     ]

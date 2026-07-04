@@ -25,7 +25,7 @@ final class AudioRecorder {
         let input = engine.inputNode
         let native = input.outputFormat(forBus: 0)
         guard native.sampleRate > 0, native.channelCount > 0 else {
-            throw NSError(domain: "FreeFlow", code: 1,
+            throw NSError(domain: "Dhwani", code: 1,
                           userInfo: [NSLocalizedDescriptionKey: "No audio input device is available."])
         }
 

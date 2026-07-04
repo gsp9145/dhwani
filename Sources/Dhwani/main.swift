@@ -10,7 +10,7 @@ if #available(macOS 26.0, *) {
 } else {
     app.setActivationPolicy(.regular)
     let alert = NSAlert()
-    alert.messageText = "FreeFlow requires macOS 26 or later"
-    alert.informativeText = "FreeFlow uses Apple's on-device SpeechAnalyzer engine, which is available starting with macOS 26 (Tahoe)."
+    alert.messageText = "Dhwani requires macOS 26 or later"
+    alert.informativeText = "Dhwani uses Apple's on-device SpeechAnalyzer engine, which is available starting with macOS 26 (Tahoe)."
     alert.runModal()
 }

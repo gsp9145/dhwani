@@ -11,18 +11,18 @@ struct TranscriptEntry {
 }
 
 /// Every dictation is stored twice: in SQLite (stats, recents) and appended to
-/// a per-day markdown file in ~/Documents/FreeFlow — the user's plain-text
+/// a per-day markdown file in ~/Documents/Dhwani — the user's plain-text
 /// transcript repository they can grep and copy from.
 final class HistoryStore {
     static let shared = HistoryStore()
 
     private var db: OpaquePointer?
-    private let queue = DispatchQueue(label: "com.gaurang.freeflow.history")
+    private let queue = DispatchQueue(label: "com.gaurang.dhwani.history")
     private let sqliteTransient = unsafeBitCast(-1, to: sqlite3_destructor_type.self)
 
     static let transcriptsFolder: URL = {
         let docs = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]
-        return docs.appendingPathComponent("FreeFlow", isDirectory: true)
+        return docs.appendingPathComponent("Dhwani", isDirectory: true)
     }()
 
     private lazy var dayFormatter: DateFormatter = {
@@ -39,11 +39,11 @@ final class HistoryStore {
 
     private init() {
         let support = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
-            .appendingPathComponent("FreeFlow", isDirectory: true)
+            .appendingPathComponent("Dhwani", isDirectory: true)
         try? FileManager.default.createDirectory(at: support, withIntermediateDirectories: true)
         try? FileManager.default.createDirectory(at: Self.transcriptsFolder, withIntermediateDirectories: true)
 
-        let path = support.appendingPathComponent("freeflow.db").path
+        let path = support.appendingPathComponent("dhwani.db").path
         if sqlite3_open(path, &db) == SQLITE_OK {
             exec("""
             CREATE TABLE IF NOT EXISTS transcripts(
@@ -59,14 +59,14 @@ final class HistoryStore {
             """)
             exec("CREATE INDEX IF NOT EXISTS idx_transcripts_day ON transcripts(day);")
         } else {
-            NSLog("FreeFlow: failed to open history database at \(path)")
+            NSLog("Dhwani: failed to open history database at \(path)")
         }
     }
 
     private func exec(_ sql: String) {
         var errorMessage: UnsafeMutablePointer<CChar>?
         if sqlite3_exec(db, sql, nil, nil, &errorMessage) != SQLITE_OK, let errorMessage {
-            NSLog("FreeFlow: sqlite error: \(String(cString: errorMessage))")
+            NSLog("Dhwani: sqlite error: \(String(cString: errorMessage))")
             sqlite3_free(errorMessage)
         }
     }
@@ -102,7 +102,7 @@ final class HistoryStore {
         let file = Self.transcriptsFolder.appendingPathComponent("\(day).md")
         var chunk = ""
         if !FileManager.default.fileExists(atPath: file.path) {
-            chunk += "# FreeFlow transcripts — \(day)\n\n"
+            chunk += "# Dhwani transcripts — \(day)\n\n"
         }
         chunk += "### \(timeFormatter.string(from: date)) — \(appName ?? "Unknown")\n\n\(text)\n\n"
         guard let data = chunk.data(using: .utf8) else { return }
