@@ -48,10 +48,13 @@ enum TextInserter {
         pb.setData(Data(), forType: transientType) // clipboard managers skip transient items
         let ourChangeCount = pb.changeCount
 
-        postCommandV()
+        // Give the pasteboard server a moment to settle before the app reads it.
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.08) {
+            postCommandV()
+        }
 
         guard Settings.shared.restoreClipboard else { return }
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.9) {
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) {
             // Don't clobber anything the user copied in the meantime.
             guard pb.changeCount == ourChangeCount else { return }
             pb.clearContents()
@@ -68,26 +71,39 @@ enum TextInserter {
         down?.flags = .maskCommand
         up?.flags = .maskCommand
         down?.post(tap: .cghidEventTap)
+        usleep(10_000) // some apps drop the paste if down/up land in the same instant
         up?.post(tap: .cghidEventTap)
     }
 
     /// Fallback for apps where synthetic paste misbehaves: type the text as
-    /// unicode keyboard events in small chunks.
+    /// unicode keyboard events. Runs off the main thread — the usleep pacing
+    /// would otherwise stall the event tap that lives on the main run loop.
+    /// Chunks split on character boundaries so surrogate pairs (emoji) are
+    /// never torn across two events.
     private static func type(_ text: String) {
-        guard let source = CGEventSource(stateID: .combinedSessionState) else { return }
-        let units = Array(text.utf16)
-        var index = 0
-        let chunkSize = 20
-        while index < units.count {
-            let chunk = Array(units[index..<min(index + chunkSize, units.count)])
-            let down = CGEvent(keyboardEventSource: source, virtualKey: 0, keyDown: true)
-            down?.keyboardSetUnicodeString(stringLength: chunk.count, unicodeString: chunk)
-            down?.post(tap: .cghidEventTap)
-            let up = CGEvent(keyboardEventSource: source, virtualKey: 0, keyDown: false)
-            up?.keyboardSetUnicodeString(stringLength: chunk.count, unicodeString: chunk)
-            up?.post(tap: .cghidEventTap)
-            index += chunkSize
-            usleep(3000)
+        DispatchQueue.global(qos: .userInitiated).async {
+            guard let source = CGEventSource(stateID: .combinedSessionState) else { return }
+            let maxUnits = 20 // keyboardSetUnicodeString truncates beyond this
+            var chunk: [UInt16] = []
+
+            func flush() {
+                guard !chunk.isEmpty else { return }
+                let down = CGEvent(keyboardEventSource: source, virtualKey: 0, keyDown: true)
+                down?.keyboardSetUnicodeString(stringLength: chunk.count, unicodeString: chunk)
+                down?.post(tap: .cghidEventTap)
+                let up = CGEvent(keyboardEventSource: source, virtualKey: 0, keyDown: false)
+                up?.keyboardSetUnicodeString(stringLength: chunk.count, unicodeString: chunk)
+                up?.post(tap: .cghidEventTap)
+                chunk.removeAll(keepingCapacity: true)
+                usleep(3000)
+            }
+
+            for character in text {
+                let units = Array(String(character).utf16)
+                if chunk.count + units.count > maxUnits { flush() }
+                chunk.append(contentsOf: units)
+            }
+            flush()
         }
     }
 }

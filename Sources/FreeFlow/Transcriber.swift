@@ -22,6 +22,14 @@ enum SpeechAssets {
         let probe = SpeechTranscriber(locale: locale, preset: .transcription)
         let status = await AssetInventory.status(forModules: [probe])
         if status == .installed { return }
+
+        // Reserve the locale so the system doesn't evict its assets later.
+        if await AssetInventory.reservedLocales.count >= AssetInventory.maximumReservedLocales,
+           let oldest = await AssetInventory.reservedLocales.first {
+            _ = await AssetInventory.release(reservedLocale: oldest)
+        }
+        _ = try? await AssetInventory.reserve(locale: locale)
+
         if let request = try await AssetInventory.assetInstallationRequest(supporting: [probe]) {
             onProgress?(request.progress)
             try await request.downloadAndInstall()
@@ -57,10 +65,14 @@ final class TranscriptionSession {
     init(locale: Locale) {
         let transcriber = SpeechTranscriber(locale: locale,
                                             transcriptionOptions: [],
-                                            reportingOptions: [.volatileResults],
+                                            reportingOptions: [.volatileResults, .fastResults],
                                             attributeOptions: [])
         self.transcriber = transcriber
-        self.analyzer = SpeechAnalyzer(modules: [transcriber])
+        // .processLifetime keeps the speech model hot between dictations, so the
+        // second and later sessions start with near-zero model-load latency.
+        self.analyzer = SpeechAnalyzer(modules: [transcriber],
+                                       options: SpeechAnalyzer.Options(priority: .userInitiated,
+                                                                       modelRetention: .processLifetime))
         (self.stream, self.inputBuilder) = AsyncStream<AnalyzerInput>.makeStream()
     }
 

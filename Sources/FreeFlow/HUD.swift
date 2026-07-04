@@ -77,9 +77,12 @@ final class HUD {
                 self.orderOut()
                 return
             }
-            self.hideTimer = Timer.scheduledTimer(withTimeInterval: delay, repeats: false) { [weak self] _ in
+            // .common mode so the timer still fires while a menu is being tracked.
+            let timer = Timer(timeInterval: delay, repeats: false) { [weak self] _ in
                 self?.orderOut()
             }
+            RunLoop.main.add(timer, forMode: .common)
+            self.hideTimer = timer
         }
     }
 

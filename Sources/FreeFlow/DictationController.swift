@@ -4,6 +4,7 @@ import Speech
 
 /// Orchestrates one dictation: key down → capture + stream-transcribe →
 /// key up → finalize → (optional AI polish) → insert → save history.
+/// All state transitions happen on the main thread.
 @available(macOS 26.0, *)
 final class DictationController {
     enum State {
@@ -16,10 +17,13 @@ final class DictationController {
         didSet { onStateChange?(state) }
     }
     var onStateChange: ((State) -> Void)?
+    /// Wired to HotkeyManager: is the push-to-talk key physically held right now?
+    var hotkeyStillHeld: (() -> Bool)?
 
     private var locale = Locale(identifier: "en_US")
     private var cachedAudioFormat: AVAudioFormat?
     private(set) var assetsReady = false
+    private var preparing = false
 
     private var recorder: AudioRecorder?
     private var session: TranscriptionSession?
@@ -28,11 +32,22 @@ final class DictationController {
     private var targetBundleID: String?
     private var maxDurationTimer: Timer?
 
+    /// Bumped on every start and cancel; in-flight pipelines compare against it
+    /// and abandon their work when it no longer matches.
+    private var generation = 0
+    /// Set when the hotkey was pressed while a previous dictation was still
+    /// finalizing; consumed in reset().
+    private var pendingStart = false
+
     private static let maxDuration: TimeInterval = 300
+    private static let finalizeTimeout: TimeInterval = 20
 
     /// Resolve locale, download the on-device model if needed, cache the audio format.
     func prepare() {
+        guard !preparing, !assetsReady else { return }
+        preparing = true
         Task { @MainActor in
+            defer { self.preparing = false }
             self.locale = await SpeechAssets.resolveLocale()
             let status = await SpeechAssets.status(locale: self.locale)
             if status != .installed {
@@ -47,7 +62,7 @@ final class DictationController {
                     HUD.shared.hide(after: 2.5)
                 }
             } catch {
-                HUD.shared.show(.error("Speech model download failed — check your connection"))
+                HUD.shared.show(.error("Speech model download failed — will retry next time you dictate"))
                 HUD.shared.hide(after: 4)
                 NSLog("FreeFlow: asset install failed: \(error)")
             }
@@ -57,11 +72,19 @@ final class DictationController {
     // MARK: - Session lifecycle (all on main thread)
 
     func startDictation() {
-        guard state == .idle else { return }
+        guard state == .idle else {
+            // Still finalizing the previous dictation: queue this press instead
+            // of silently swallowing the user's speech.
+            if state == .processing { pendingStart = true }
+            return
+        }
 
         guard Permissions.micStatus == .authorized else {
             Permissions.requestMic { granted in
-                if !granted {
+                if granted {
+                    HUD.shared.show(.info("Microphone ready — hold \(Settings.shared.holdKey.shortName) and speak"))
+                    HUD.shared.hide(after: 2.5)
+                } else {
                     HUD.shared.show(.error("Microphone access is required — enable it in System Settings"))
                     HUD.shared.hide(after: 3)
                 }
@@ -69,11 +92,13 @@ final class DictationController {
             return
         }
         guard assetsReady else {
-            HUD.shared.show(.error("Speech model still downloading — try again in a moment"))
+            prepare() // retry a failed or still-running model download
+            HUD.shared.show(.error("Speech model not ready yet — try again in a moment"))
             HUD.shared.hide(after: 2.5)
             return
         }
 
+        generation += 1
         startedAt = Date()
         let frontmost = NSWorkspace.shared.frontmostApplication
         targetAppName = frontmost?.localizedName
@@ -88,6 +113,13 @@ final class DictationController {
         session.begin()
 
         let recorder = AudioRecorder()
+        recorder.onConfigurationChange = { [weak self] in
+            // Input device changed (AirPods connected, mic unplugged): the
+            // engine stops delivering buffers. Salvage what we have.
+            guard let self, self.state == .recording else { return }
+            HUD.shared.show(.error("Microphone changed — finishing dictation"))
+            self.stopDictation()
+        }
         self.recorder = recorder
         do {
             try recorder.start(targetFormat: cachedAudioFormat) { buffer in
@@ -108,9 +140,11 @@ final class DictationController {
         HUD.shared.show(.listening(""))
 
         maxDurationTimer?.invalidate()
-        maxDurationTimer = Timer.scheduledTimer(withTimeInterval: Self.maxDuration, repeats: false) { [weak self] _ in
+        let timer = Timer(timeInterval: Self.maxDuration, repeats: false) { [weak self] _ in
             self?.stopDictation()
         }
+        RunLoop.main.add(timer, forMode: .common)
+        maxDurationTimer = timer
     }
 
     func stopDictation() {
@@ -118,21 +152,26 @@ final class DictationController {
         state = .processing
         maxDurationTimer?.invalidate()
         HUD.shared.show(.processing)
+        let gen = generation
 
         Task { @MainActor in
             // Capture a short audio tail so the last word isn't clipped.
             try? await Task.sleep(nanoseconds: 120_000_000)
             recorder.stop()
 
-            var text = ""
-            do {
-                text = try await session.finishAndCollect()
-            } catch {
-                NSLog("FreeFlow: transcription failed: \(error)")
+            // Watchdog: a stalled analyzer must never brick the app in .processing.
+            let collected = await withTimeout(seconds: Self.finalizeTimeout) {
+                (try? await session.finishAndCollect()) ?? ""
             }
+            if collected == nil {
+                NSLog("FreeFlow: transcription stalled; abandoning session")
+                session.cancel()
+            }
+            guard gen == self.generation else { return } // cancelled meanwhile
 
+            var text = (collected ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
             guard !text.isEmpty else {
-                HUD.shared.show(.error("No speech detected"))
+                HUD.shared.show(.error(collected == nil ? "Transcription stalled — try again" : "No speech detected"))
                 HUD.shared.hide(after: 1.6)
                 Sounds.error()
                 self.reset()
@@ -142,16 +181,18 @@ final class DictationController {
             if Settings.shared.aiPolish, let polished = await AIFormatter.polish(text) {
                 text = polished
             }
+            guard gen == self.generation else { return } // cancelled during polish
 
             let durationMs = Int(Date().timeIntervalSince(self.startedAt) * 1000)
             let inserted = TextInserter.insert(text)
-            HistoryStore.shared.save(text: text,
-                                     appName: self.targetAppName,
-                                     bundleID: self.targetBundleID,
-                                     durationMs: durationMs)
-
-            let words = text.split(whereSeparator: { $0.isWhitespace }).count
             if inserted {
+                // Deliberately skipped for secure fields: never persist what was
+                // probably a password to plaintext history.
+                HistoryStore.shared.save(text: text,
+                                         appName: self.targetAppName,
+                                         bundleID: self.targetBundleID,
+                                         durationMs: durationMs)
+                let words = text.split(whereSeparator: { $0.isWhitespace }).count
                 HUD.shared.show(.done(words: words))
                 HUD.shared.hide(after: 1.2)
                 Sounds.done()
@@ -164,11 +205,14 @@ final class DictationController {
     }
 
     func cancelDictation() {
-        guard state == .recording else { return }
+        guard state != .idle else { return }
+        generation += 1 // any in-flight pipeline abandons at its next check
+        pendingStart = false
         maxDurationTimer?.invalidate()
         recorder?.stop()
         session?.cancel()
-        HUD.shared.hide()
+        HUD.shared.show(.info("Canceled"))
+        HUD.shared.hide(after: 0.7)
         reset()
     }
 
@@ -178,5 +222,16 @@ final class DictationController {
         maxDurationTimer?.invalidate()
         maxDurationTimer = nil
         state = .idle
+
+        if pendingStart {
+            pendingStart = false
+            if hotkeyStillHeld?() == true {
+                startDictation()
+            } else {
+                HUD.shared.show(.error("Too fast — the previous dictation was still finishing"))
+                HUD.shared.hide(after: 2)
+                Sounds.error()
+            }
+        }
     }
 }

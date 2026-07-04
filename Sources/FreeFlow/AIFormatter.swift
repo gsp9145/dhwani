@@ -37,24 +37,17 @@ enum AIFormatter {
         // The on-device model has a small context window; skip very long dictations.
         guard text.count < 6000 else { return nil }
 
-        let result: String? = await withTaskGroup(of: String?.self) { group in
-            group.addTask {
-                do {
-                    let session = LanguageModelSession(instructions: instructions)
-                    return try await session.respond(to: text).content
-                } catch {
-                    NSLog("FreeFlow: AI polish failed: \(error)")
-                    return nil
-                }
-            }
-            group.addTask {
-                try? await Task.sleep(nanoseconds: UInt64(timeout * 1_000_000_000))
+        // withTimeout (not a task group): a task group would implicitly await
+        // the model task even after the timeout won, defeating the deadline.
+        let result: String? = await withTimeout(seconds: timeout) { () -> String? in
+            do {
+                let session = LanguageModelSession(instructions: instructions)
+                return try await session.respond(to: text).content
+            } catch {
+                NSLog("FreeFlow: AI polish failed: \(error)")
                 return nil
             }
-            let first = await group.next() ?? nil
-            group.cancelAll()
-            return first
-        }
+        } ?? nil
 
         guard let cleaned = result?.trimmingCharacters(in: .whitespacesAndNewlines),
               !cleaned.isEmpty else { return nil }

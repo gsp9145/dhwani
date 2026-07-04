@@ -28,12 +28,23 @@ enum HoldKey: String, CaseIterable {
         }
     }
 
+    /// Device-specific flag bit (IOLLEvent.h NX_DEVICE…KEYMASK). The coarse
+    /// CGEventFlags masks are side-agnostic — holding LEFT ⌘ would mask the
+    /// release of RIGHT ⌘ and leave recording stuck on without these.
+    var deviceBit: UInt64? {
+        switch self {
+        case .rightCommand: return 0x0010 // NX_DEVICERCMDKEYMASK
+        case .rightOption: return 0x0040  // NX_DEVICERALTKEYMASK
+        case .fn, .f1: return nil
+        }
+    }
+
     var displayName: String {
         switch self {
         case .fn: return "Fn / Globe 🌐"
         case .rightCommand: return "Right ⌘"
         case .rightOption: return "Right ⌥"
-        case .f1: return "F1"
+        case .f1: return "F1 (needs “F1, F2… as standard function keys”)"
         }
     }
 

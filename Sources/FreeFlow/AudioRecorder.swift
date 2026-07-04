@@ -4,7 +4,19 @@ import AVFoundation
 /// to the transcriber's preferred format.
 final class AudioRecorder {
     private let engine = AVAudioEngine()
-    private(set) var isRunning = false
+    private var configObserver: NSObjectProtocol?
+
+    /// Fired on the main queue when the input hardware changes mid-capture
+    /// (device switch, AirPods connect) — the engine stops delivering buffers.
+    var onConfigurationChange: (() -> Void)?
+
+    // Read on the audio render thread, written on the main thread.
+    private let runningLock = NSLock()
+    private var _running = false
+    var isRunning: Bool {
+        get { runningLock.lock(); defer { runningLock.unlock() }; return _running }
+        set { runningLock.lock(); defer { runningLock.unlock() }; _running = newValue }
+    }
 
     func start(targetFormat: AVAudioFormat?, onBuffer: @escaping (AVAudioPCMBuffer) -> Void) throws {
         let input = engine.inputNode
@@ -18,7 +30,19 @@ final class AudioRecorder {
         var target: AVAudioFormat?
         if let requested = targetFormat, requested != native {
             converter = AVAudioConverter(from: native, to: requested)
+            // No priming: we convert independent small buffers; priming would
+            // swallow leading samples from every one of them.
+            converter?.primeMethod = .none
             target = requested
+        }
+
+        configObserver = NotificationCenter.default.addObserver(
+            forName: .AVAudioEngineConfigurationChange,
+            object: engine,
+            queue: .main
+        ) { [weak self] _ in
+            guard let self, self.isRunning else { return }
+            self.onConfigurationChange?()
         }
 
         isRunning = true
@@ -39,6 +63,7 @@ final class AudioRecorder {
         } catch {
             isRunning = false
             input.removeTap(onBus: 0)
+            removeObserver()
             throw error
         }
     }
@@ -46,8 +71,16 @@ final class AudioRecorder {
     func stop() {
         guard isRunning else { return }
         isRunning = false
+        removeObserver()
         engine.inputNode.removeTap(onBus: 0)
         engine.stop()
+    }
+
+    private func removeObserver() {
+        if let configObserver {
+            NotificationCenter.default.removeObserver(configObserver)
+            self.configObserver = nil
+        }
     }
 
     private static func convert(_ buffer: AVAudioPCMBuffer,

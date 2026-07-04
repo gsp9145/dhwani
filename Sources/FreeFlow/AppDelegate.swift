@@ -9,6 +9,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     private var accessibilityRetryTimer: Timer?
 
     func applicationDidFinishLaunching(_ notification: Notification) {
+        // Single instance: a second copy would double-paste every dictation.
+        if let bundleID = Bundle.main.bundleIdentifier {
+            let others = NSRunningApplication.runningApplications(withBundleIdentifier: bundleID)
+                .filter { $0.processIdentifier != ProcessInfo.processInfo.processIdentifier }
+            if !others.isEmpty {
+                NSApp.terminate(nil)
+                return
+            }
+        }
         setupStatusItem()
         setupDictation()
         onboardIfNeeded()
@@ -25,18 +34,21 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     }
 
     private func startHotkeysWhenTrusted() {
+        // "In flight" includes .processing so Escape can still cancel after the
+        // key is released, before the text lands.
         hotkeys.isRecording = { [weak self] in
-            self?.dictation.state == .recording
+            (self?.dictation.state ?? .idle) != .idle
         }
         hotkeys.onHoldBegan = { [weak self] in self?.dictation.startDictation() }
         hotkeys.onHoldEnded = { [weak self] in self?.dictation.stopDictation() }
         hotkeys.onCancel = { [weak self] in self?.dictation.cancelDictation() }
+        dictation.hotkeyStillHeld = { [weak self] in self?.hotkeys.isKeyCurrentlyDown ?? false }
 
         if Permissions.accessibilityGranted, hotkeys.start() {
             return
         }
         // Poll until the user grants Accessibility, then arm the tap.
-        accessibilityRetryTimer = Timer.scheduledTimer(withTimeInterval: 2, repeats: true) { [weak self] timer in
+        let timer = Timer(timeInterval: 2, repeats: true) { [weak self] timer in
             guard let self, Permissions.accessibilityGranted else { return }
             if self.hotkeys.start() {
                 timer.invalidate()
@@ -45,6 +57,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
                 HUD.shared.hide(after: 2.5)
             }
         }
+        RunLoop.main.add(timer, forMode: .common)
+        accessibilityRetryTimer = timer
     }
 
     // MARK: - Status item
@@ -229,8 +243,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     // MARK: - Onboarding
 
     private func onboardIfNeeded() {
-        let needsPermissions = !Permissions.accessibilityGranted || Permissions.micStatus != .authorized
-        guard !Settings.shared.hasOnboarded || needsPermissions else { return }
+        // Auto-show only on first run or when Accessibility (the app's core
+        // requirement) is missing. A denied microphone shouldn't nag on every
+        // launch — dictation attempts surface that with a HUD instead.
+        guard !Settings.shared.hasOnboarded || !Permissions.accessibilityGranted else { return }
         showOnboarding()
         Settings.shared.hasOnboarded = true
     }
