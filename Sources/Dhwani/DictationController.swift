@@ -14,7 +14,10 @@ final class DictationController {
     }
 
     private(set) var state: State = .idle {
-        didSet { onStateChange?(state) }
+        didSet {
+            DebugLog.log("state: \(oldValue) → \(state)")
+            onStateChange?(state)
+        }
     }
     var onStateChange: ((State) -> Void)?
     /// Wired to HotkeyManager: is the push-to-talk key physically held right now?
@@ -194,6 +197,7 @@ final class DictationController {
             guard gen == self.generation else { return } // cancelled meanwhile
 
             var text = (collected ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+            DebugLog.log("stop: collected \(text.count) chars (timedOut=\(collected == nil))")
             guard !text.isEmpty else {
                 HUD.shared.show(.error(collected == nil ? "Transcription stalled — try again" : "No speech detected"))
                 HUD.shared.hide(after: 1.6)

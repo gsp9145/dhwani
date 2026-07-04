@@ -93,6 +93,7 @@ final class HotkeyManager {
 
         if isHandsFree {
             // Tap while locked = stop & insert. Its release means nothing.
+            DebugLog.log("gesture: tap while hands-free → stop & insert")
             isHandsFree = false
             gestureKey = nil
             swallowNextRelease = true
@@ -100,6 +101,7 @@ final class HotkeyManager {
             return
         }
         if doubleTapTimer != nil {
+            DebugLog.log("gesture: second press inside double-tap window")
             // Second press inside the window; recording has been running since
             // the first tap's key-down. Whether this locks hands-free is
             // decided on its release: quick tap = lock, long hold = the user
@@ -112,6 +114,7 @@ final class HotkeyManager {
         }
         gestureKey = key
         downAt = Date()
+        DebugLog.log("gesture: key down → hold began (\(key.rawValue))")
         onHoldBegan?()
     }
 
@@ -119,6 +122,7 @@ final class HotkeyManager {
         keyIsDown = false
         if swallowNextRelease {
             swallowNextRelease = false
+            DebugLog.log("gesture: key up (swallowed)")
             return
         }
         let held = -(downAt?.timeIntervalSinceNow ?? 0)
@@ -128,10 +132,12 @@ final class HotkeyManager {
             downAt = nil
             if held < Self.minimumHold {
                 // Genuine double-tap: lock hands-free, keep recording.
+                DebugLog.log("gesture: double-tap complete (\(Int(held * 1000))ms) → hands-free locked")
                 isHandsFree = true
                 onHandsFreeLocked?()
             } else {
                 // Tap-then-hold: an ordinary dictation — insert on release.
+                DebugLog.log("gesture: tap-then-hold release (\(Int(held * 1000))ms) → insert")
                 gestureKey = nil
                 onHoldEnded?()
             }
@@ -141,16 +147,19 @@ final class HotkeyManager {
 
         if held < Self.minimumHold {
             // Might be the first half of a double-tap: keep recording and wait.
+            DebugLog.log("gesture: quick tap (\(Int(held * 1000))ms) → double-tap window open")
             doubleTapTimer?.invalidate()
             let timer = Timer(timeInterval: Self.doubleTapWindow, repeats: false) { [weak self] _ in
                 guard let self else { return }
                 self.doubleTapTimer = nil
                 self.gestureKey = nil
+                DebugLog.log("gesture: double-tap window expired → accidental tap")
                 self.onTapTimeout?() // lone quick tap — accidental press
             }
             RunLoop.main.add(timer, forMode: .common)
             doubleTapTimer = timer
         } else {
+            DebugLog.log("gesture: hold release (\(Int(held * 1000))ms) → insert")
             gestureKey = nil
             onHoldEnded?()
         }
@@ -170,6 +179,7 @@ final class HotkeyManager {
     /// Reset gesture state so push-to-talk can't get stuck recording after the
     /// tap missed a key-up (sleep, secure input, tap timeout).
     private func recoverFromStall() {
+        DebugLog.log("tap: disabled by system — re-enabled, gesture state reset")
         resetGesture()
         if isRecording?() == true {
             onCancel?()
@@ -193,9 +203,16 @@ final class HotkeyManager {
         // Escape cancels an in-flight dictation (recording OR processing) and
         // never reaches the frontmost app.
         if recording, type == .keyDown, keyCode == Self.escapeKeyCode {
+            DebugLog.log("gesture: Escape → cancel")
             resetGesture()
             onCancel?()
             return nil
+        }
+
+        // Phantom-event catcher: any key activity during a dictation is logged
+        // so ghost cancels can be traced to their source.
+        if recording, type == .keyDown {
+            DebugLog.log("event: keyDown code=\(keyCode) during dictation (keyIsDown=\(keyIsDown) window=\(doubleTapTimer != nil) handsFree=\(isHandsFree))")
         }
 
         if hotkey.isModifier {
@@ -226,6 +243,7 @@ final class HotkeyManager {
             // Cancel and pass it through. Hands-free is exempt — typing while
             // locked-on is allowed.
             if type == .keyDown, recording, !isHandsFree, keyIsDown || doubleTapTimer != nil {
+                DebugLog.log("gesture: stray keyDown code=\(keyCode) during hold/window → cancel")
                 resetGesture()
                 onCancel?()
                 return Unmanaged.passUnretained(event)
