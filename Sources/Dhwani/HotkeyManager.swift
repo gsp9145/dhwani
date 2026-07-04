@@ -29,6 +29,10 @@ final class HotkeyManager {
     /// Max gap between first tap's release and second tap's press to lock hands-free.
     static let doubleTapWindow: TimeInterval = 0.4
     private static let escapeKeyCode: Int64 = 53
+    /// On Fn/Globe release macOS synthesizes a keyDown/keyUp with this code
+    /// (its internal emoji-palette trigger). It's the same physical key, not a
+    /// stray press — treat it as part of the Fn gesture.
+    private static let globeEchoKeyCode: Int64 = 179
 
     private var tap: CFMachPort?
     private var runLoopSource: CFRunLoopSource?
@@ -199,6 +203,17 @@ final class HotkeyManager {
         let hotkey = gestureKey ?? Settings.shared.holdKey
         let keyCode = event.getIntegerValueField(.keyboardEventKeycode)
         let recording = isRecording?() ?? false
+
+        // The Globe echo is our own hotkey talking, never a stray press.
+        // Swallowing it also stops the system emoji palette from opening.
+        if keyCode == Self.globeEchoKeyCode {
+            if hotkey == .fn {
+                return nil
+            }
+            // Fn isn't our hotkey: the user really pressed Globe — let the
+            // system have it, but never treat it as a dictation-canceling key.
+            return Unmanaged.passUnretained(event)
+        }
 
         // Escape cancels an in-flight dictation (recording OR processing) and
         // never reaches the frontmost app.
