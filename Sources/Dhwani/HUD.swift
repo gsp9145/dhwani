@@ -6,6 +6,10 @@ final class WaveformView: NSView {
     var level: Float = 0
     /// Processing mode: a gentle idle pulse instead of voice-driven bars.
     var processing = false
+    /// Bar color — red while hands-free recording is locked on.
+    var tint: NSColor = .labelColor {
+        didSet { needsDisplay = true }
+    }
 
     private let barCount = 12
     private var heights: [CGFloat]
@@ -56,7 +60,7 @@ final class WaveformView: NSView {
         let gap: CGFloat = 3.5
         let totalWidth = CGFloat(barCount) * barWidth + CGFloat(barCount - 1) * gap
         var x = (bounds.width - totalWidth) / 2
-        NSColor.labelColor.withAlphaComponent(0.85).setFill()
+        tint.withAlphaComponent(0.85).setFill()
         for i in 0..<barCount {
             let h = max(3, heights[i] * bounds.height)
             let y = (bounds.height - h) / 2
@@ -143,6 +147,13 @@ final class HUD {
     /// Microphone level 0…1 for the waveform.
     func updateLevel(_ level: Float) {
         DispatchQueue.main.async { self.wave.level = level }
+    }
+
+    /// Hands-free lock indicator: red bars while recording is locked on.
+    func setHandsFree(_ on: Bool) {
+        DispatchQueue.main.async {
+            self.wave.tint = on ? .systemRed : .labelColor
+        }
     }
 
     func hide(after delay: TimeInterval = 0) {

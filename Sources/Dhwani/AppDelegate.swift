@@ -42,6 +42,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         hotkeys.onHoldBegan = { [weak self] in self?.dictation.startDictation() }
         hotkeys.onHoldEnded = { [weak self] in self?.dictation.stopDictation() }
         hotkeys.onCancel = { [weak self] in self?.dictation.cancelDictation() }
+        hotkeys.onHandsFreeLocked = { [weak self] in self?.dictation.lockHandsFree() }
         dictation.hotkeyStillHeld = { [weak self] in self?.hotkeys.isKeyCurrentlyDown ?? false }
 
         if Permissions.accessibilityGranted, hotkeys.start() {
@@ -120,7 +121,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         let today = HistoryStore.shared.todayStats()
         let total = HistoryStore.shared.totalStats()
 
-        menu.addItem(disabled("Hold \(Settings.shared.holdKey.shortName) to dictate · Esc to cancel"))
+        menu.addItem(disabled("Hold \(Settings.shared.holdKey.shortName) to dictate · double-tap for hands-free · Esc cancels"))
         menu.addItem(disabled("Today: \(today.words) words · \(today.notes) notes"))
         menu.addItem(disabled("All time: \(total.words) words · \(total.notes) notes"))
         menu.addItem(.separator())

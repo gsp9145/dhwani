@@ -27,6 +27,7 @@ release Fn ──► finalize
 ## Features
 
 - **Push-to-talk dictation** — hold `Fn` (or Right ⌘ / Right ⌥ / F1), speak, release. Esc cancels.
+- **Hands-free mode** — double-tap the dictation key to lock recording (waveform turns red); tap once to stop and insert. 20-minute cap.
 - **Live transcript HUD** — Wispr-style pill at the bottom of the screen shows words as you say them.
 - **Works in every app** — inserts via paste simulation (with clipboard save/restore) or keystroke typing.
 - **AI Polish** (toggle) — on-device LLM removes "um/uh", applies self-corrections ("scratch that…"), fixes punctuation.
@@ -65,7 +66,7 @@ Wispr Flow is excellent — but it's $15–20/month, and your audio is processed
 
 ## Roadmap
 
-- [ ] Hands-free toggle mode (double-tap to lock recording)
+- [x] Hands-free toggle mode (double-tap to lock recording)
 - [ ] Personal dictionary (custom vocabulary via `AnalysisContext.contextualStrings`)
 - [ ] Per-app formatting profiles (code-friendly in terminals/IDEs)
 - [ ] Command mode ("select last paragraph, make it formal")

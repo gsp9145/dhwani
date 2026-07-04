@@ -40,6 +40,7 @@ final class DictationController {
     private var pendingStart = false
 
     private static let maxDuration: TimeInterval = 300
+    private static let handsFreeMaxDuration: TimeInterval = 1200 // 20 min, like Wispr
     private static let finalizeTimeout: TimeInterval = 20
 
     /// Resolve locale, download the on-device model if needed, cache the audio format.
@@ -140,6 +141,7 @@ final class DictationController {
 
         state = .recording
         Sounds.start()
+        HUD.shared.setHandsFree(false)
         HUD.shared.show(.listening)
 
         maxDurationTimer?.invalidate()
@@ -148,6 +150,19 @@ final class DictationController {
         }
         RunLoop.main.add(timer, forMode: .common)
         maxDurationTimer = timer
+    }
+
+    /// Double-tap locked recording on: extend the cap and mark the HUD.
+    func lockHandsFree() {
+        guard state == .recording else { return }
+        maxDurationTimer?.invalidate()
+        let timer = Timer(timeInterval: Self.handsFreeMaxDuration, repeats: false) { [weak self] _ in
+            self?.stopDictation()
+        }
+        RunLoop.main.add(timer, forMode: .common)
+        maxDurationTimer = timer
+        HUD.shared.setHandsFree(true)
+        Sounds.start()
     }
 
     func stopDictation() {
@@ -214,6 +229,7 @@ final class DictationController {
         maxDurationTimer?.invalidate()
         recorder?.stop()
         session?.cancel()
+        HUD.shared.setHandsFree(false)
         HUD.shared.show(.info("Canceled"))
         HUD.shared.hide(after: 0.7)
         reset()
