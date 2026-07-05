@@ -33,6 +33,9 @@ struct GeneralSettingsView: View {
     @State private var todayStats: (notes: Int, words: Int) = (0, 0)
     @State private var totalStats: (notes: Int, words: Int) = (0, 0)
     @State private var appBreakdown: [(app: String, notes: Int, words: Int)] = []
+    @State private var rangeTotalWords = 0
+    @State private var breakdownRange: StatRange = .week
+    @State private var showPercentages = false
 
     private let refresh = Timer.publish(every: 2, on: .main, in: .common).autoconnect()
 
@@ -102,15 +105,27 @@ struct GeneralSettingsView: View {
             }
 
             Section("Where your words go") {
+                HStack(spacing: 10) {
+                    Picker("Range", selection: $breakdownRange) {
+                        ForEach(StatRange.allCases, id: \.self) { r in
+                            Text(r.rawValue).tag(r)
+                        }
+                    }
+                    .pickerStyle(.segmented)
+                    .labelsHidden()
+                    Toggle("%", isOn: $showPercentages)
+                        .toggleStyle(.button)
+                        .help("Toggle between word counts and share of the total")
+                }
                 if appBreakdown.isEmpty {
-                    Text("Dictate somewhere and your top apps show up here.")
+                    Text("No dictations in this range yet.")
                         .foregroundStyle(.secondary)
                 } else {
                     ForEach(appBreakdown, id: \.app) { row in
                         LabeledContent(row.app) {
                             HStack(spacing: 10) {
-                                bar(fraction: Double(row.words) / Double(max(appBreakdown.first?.words ?? 1, 1)))
-                                Text("\(row.words) words")
+                                bar(fraction: fraction(for: row))
+                                Text(valueLabel(for: row))
                                     .monospacedDigit()
                                     .foregroundStyle(.secondary)
                                     .frame(width: 90, alignment: .trailing)
@@ -123,6 +138,22 @@ struct GeneralSettingsView: View {
         .formStyle(.grouped)
         .onAppear(perform: reload)
         .onReceive(refresh) { _ in reload() }
+        .onChange(of: breakdownRange) { _, _ in reload() }
+    }
+
+    private func fraction(for row: (app: String, notes: Int, words: Int)) -> Double {
+        if showPercentages {
+            return Double(row.words) / Double(max(rangeTotalWords, 1))
+        }
+        return Double(row.words) / Double(max(appBreakdown.first?.words ?? 1, 1))
+    }
+
+    private func valueLabel(for row: (app: String, notes: Int, words: Int)) -> String {
+        if showPercentages {
+            let pct = 100.0 * Double(row.words) / Double(max(rangeTotalWords, 1))
+            return pct < 1 ? "<1%" : "\(Int(pct.rounded()))%"
+        }
+        return "\(row.words.formatted()) words"
     }
 
     @ViewBuilder
@@ -161,7 +192,26 @@ struct GeneralSettingsView: View {
         launchAtLogin = SMAppService.mainApp.status == .enabled
         todayStats = HistoryStore.shared.todayStats()
         totalStats = HistoryStore.shared.totalStats()
-        appBreakdown = HistoryStore.shared.appBreakdown(limit: 6)
+        appBreakdown = HistoryStore.shared.appBreakdown(limit: 6, since: breakdownRange.since)
+        rangeTotalWords = HistoryStore.shared.wordsTotal(since: breakdownRange.since)
+    }
+}
+
+/// Time window for the app-breakdown panel.
+private enum StatRange: String, CaseIterable {
+    case today = "Today"
+    case week = "7 days"
+    case month = "Month"
+    case year = "Year"
+
+    var since: Date {
+        let calendar = Calendar.current
+        switch self {
+        case .today: return calendar.startOfDay(for: Date())
+        case .week: return calendar.date(byAdding: .day, value: -7, to: Date()) ?? Date()
+        case .month: return calendar.date(byAdding: .month, value: -1, to: Date()) ?? Date()
+        case .year: return calendar.date(byAdding: .year, value: -1, to: Date()) ?? Date()
+        }
     }
 }
 
