@@ -72,30 +72,36 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
 
     // MARK: - Status item
 
-    /// The ध brand glyph as a template image: monochrome, adapts to the menu
-    /// bar's light/dark appearance, tintable for recording states.
-    private static let glyphIcon: NSImage = {
+    /// The ध brand glyph. With no color it's a template image (adapts to the
+    /// menu bar's appearance); with a color it's pre-rendered in that color —
+    /// contentTintColor doesn't reliably tint custom template images on
+    /// status-bar buttons, so state colors are baked in instead.
+    private static func glyphIcon(color: NSColor?) -> NSImage {
         let size = NSSize(width: 18, height: 18)
         let image = NSImage(size: size, flipped: false) { rect in
             let font = NSFont(name: "KohinoorDevanagari-Semibold", size: 15)
                 ?? NSFont.systemFont(ofSize: 15, weight: .semibold)
             let glyph = NSAttributedString(string: "ध", attributes: [
                 .font: font,
-                .foregroundColor: NSColor.black,
+                .foregroundColor: color ?? NSColor.black,
             ])
             let bounds = glyph.boundingRect(with: rect.size, options: [.usesLineFragmentOrigin])
             glyph.draw(at: NSPoint(x: (rect.width - bounds.width) / 2 - bounds.minX,
                                    y: (rect.height - bounds.height) / 2 - bounds.minY))
             return true
         }
-        image.isTemplate = true
+        image.isTemplate = (color == nil)
         return image
-    }()
+    }
+
+    private static let idleIcon = glyphIcon(color: nil)
+    private static let recordingIcon = glyphIcon(color: .systemRed)
+    private static let processingIcon = glyphIcon(color: .systemOrange)
 
     private func setupStatusItem() {
         statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.squareLength)
         if let button = statusItem.button {
-            button.image = Self.glyphIcon
+            button.image = Self.idleIcon
         }
         let menu = NSMenu()
         menu.delegate = self
@@ -105,11 +111,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     private func refreshIcon(for state: DictationController.State) {
         DispatchQueue.main.async {
             guard let button = self.statusItem.button else { return }
-            // Same ध glyph throughout; the tint carries the state.
             switch state {
-            case .idle: button.contentTintColor = nil
-            case .recording: button.contentTintColor = .systemRed
-            case .processing: button.contentTintColor = .systemOrange
+            case .idle: button.image = Self.idleIcon
+            case .recording: button.image = Self.recordingIcon
+            case .processing: button.image = Self.processingIcon
             }
         }
     }
