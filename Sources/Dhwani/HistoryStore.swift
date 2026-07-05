@@ -136,6 +136,23 @@ final class HistoryStore {
         }
     }
 
+    /// Top destination apps by words dictated into them.
+    func appBreakdown(limit: Int) -> [(app: String, notes: Int, words: Int)] {
+        queue.sync {
+            let sql = "SELECT COALESCE(app_name,'Unknown'), COUNT(*), COALESCE(SUM(words),0) FROM transcripts GROUP BY 1 ORDER BY 3 DESC LIMIT ?;"
+            var stmt: OpaquePointer?
+            guard sqlite3_prepare_v2(db, sql, -1, &stmt, nil) == SQLITE_OK else { return [] }
+            defer { sqlite3_finalize(stmt) }
+            sqlite3_bind_int64(stmt, 1, Int64(limit))
+            var rows: [(String, Int, Int)] = []
+            while sqlite3_step(stmt) == SQLITE_ROW {
+                let app = sqlite3_column_text(stmt, 0).map { String(cString: $0) } ?? "Unknown"
+                rows.append((app, Int(sqlite3_column_int64(stmt, 1)), Int(sqlite3_column_int64(stmt, 2))))
+            }
+            return rows
+        }
+    }
+
     func recent(limit: Int) -> [TranscriptEntry] {
         queue.sync {
             let sql = "SELECT id, ts, text, app_name, words, duration_ms FROM transcripts ORDER BY ts DESC LIMIT ?;"

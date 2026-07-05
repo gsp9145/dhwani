@@ -72,10 +72,30 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
 
     // MARK: - Status item
 
+    /// The ध brand glyph as a template image: monochrome, adapts to the menu
+    /// bar's light/dark appearance, tintable for recording states.
+    private static let glyphIcon: NSImage = {
+        let size = NSSize(width: 18, height: 18)
+        let image = NSImage(size: size, flipped: false) { rect in
+            let font = NSFont(name: "KohinoorDevanagari-Semibold", size: 15)
+                ?? NSFont.systemFont(ofSize: 15, weight: .semibold)
+            let glyph = NSAttributedString(string: "ध", attributes: [
+                .font: font,
+                .foregroundColor: NSColor.black,
+            ])
+            let bounds = glyph.boundingRect(with: rect.size, options: [.usesLineFragmentOrigin])
+            glyph.draw(at: NSPoint(x: (rect.width - bounds.width) / 2 - bounds.minX,
+                                   y: (rect.height - bounds.height) / 2 - bounds.minY))
+            return true
+        }
+        image.isTemplate = true
+        return image
+    }()
+
     private func setupStatusItem() {
         statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.squareLength)
         if let button = statusItem.button {
-            button.image = NSImage(systemSymbolName: "waveform.circle", accessibilityDescription: "Dhwani")
+            button.image = Self.glyphIcon
         }
         let menu = NSMenu()
         menu.delegate = self
@@ -85,16 +105,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     private func refreshIcon(for state: DictationController.State) {
         DispatchQueue.main.async {
             guard let button = self.statusItem.button else { return }
+            // Same ध glyph throughout; the tint carries the state.
             switch state {
-            case .idle:
-                button.image = NSImage(systemSymbolName: "waveform.circle", accessibilityDescription: "Dhwani")
-                button.contentTintColor = nil
-            case .recording:
-                button.image = NSImage(systemSymbolName: "waveform.circle.fill", accessibilityDescription: "Recording")
-                button.contentTintColor = .systemRed
-            case .processing:
-                button.image = NSImage(systemSymbolName: "waveform.circle.fill", accessibilityDescription: "Processing")
-                button.contentTintColor = .systemOrange
+            case .idle: button.contentTintColor = nil
+            case .recording: button.contentTintColor = .systemRed
+            case .processing: button.contentTintColor = .systemOrange
             }
         }
     }
@@ -135,8 +150,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             let timeFormatter = DateFormatter()
             timeFormatter.dateFormat = "HH:mm"
             for entry in recents {
-                let preview = entry.text.count > 56 ? String(entry.text.prefix(56)) + "…" : entry.text
-                let item = NSMenuItem(title: "\(timeFormatter.string(from: entry.date))  \(preview)",
+                let preview = entry.text.count > 48 ? String(entry.text.prefix(48)) + "…" : entry.text
+                let item = NSMenuItem(title: "\(timeFormatter.string(from: entry.date)) · \(entry.appName)  \(preview)",
                                       action: #selector(copyRecent(_:)), keyEquivalent: "")
                 item.target = self
                 item.representedObject = entry.text

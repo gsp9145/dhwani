@@ -32,6 +32,7 @@ struct GeneralSettingsView: View {
     @State private var micGranted = Permissions.micStatus == .authorized
     @State private var todayStats: (notes: Int, words: Int) = (0, 0)
     @State private var totalStats: (notes: Int, words: Int) = (0, 0)
+    @State private var appBreakdown: [(app: String, notes: Int, words: Int)] = []
 
     private let refresh = Timer.publish(every: 2, on: .main, in: .common).autoconnect()
 
@@ -99,6 +100,25 @@ struct GeneralSettingsView: View {
                     NSWorkspace.shared.open(HistoryStore.transcriptsFolder)
                 }
             }
+
+            Section("Where your words go") {
+                if appBreakdown.isEmpty {
+                    Text("Dictate somewhere and your top apps show up here.")
+                        .foregroundStyle(.secondary)
+                } else {
+                    ForEach(appBreakdown, id: \.app) { row in
+                        LabeledContent(row.app) {
+                            HStack(spacing: 10) {
+                                bar(fraction: Double(row.words) / Double(max(appBreakdown.first?.words ?? 1, 1)))
+                                Text("\(row.words) words")
+                                    .monospacedDigit()
+                                    .foregroundStyle(.secondary)
+                                    .frame(width: 90, alignment: .trailing)
+                            }
+                        }
+                    }
+                }
+            }
         }
         .formStyle(.grouped)
         .onAppear(perform: reload)
@@ -122,12 +142,26 @@ struct GeneralSettingsView: View {
         }
     }
 
+    @ViewBuilder
+    private func bar(fraction: Double) -> some View {
+        GeometryReader { geo in
+            ZStack(alignment: .leading) {
+                Capsule().fill(.quaternary)
+                Capsule()
+                    .fill(.tint)
+                    .frame(width: max(4, geo.size.width * fraction))
+            }
+        }
+        .frame(width: 110, height: 6)
+    }
+
     private func reload() {
         accessibilityGranted = Permissions.accessibilityGranted
         micGranted = Permissions.micStatus == .authorized
         launchAtLogin = SMAppService.mainApp.status == .enabled
         todayStats = HistoryStore.shared.todayStats()
         totalStats = HistoryStore.shared.totalStats()
+        appBreakdown = HistoryStore.shared.appBreakdown(limit: 6)
     }
 }
 
