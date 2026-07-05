@@ -1,7 +1,9 @@
 import AVFoundation
 
-/// Captures microphone audio with AVAudioEngine and delivers buffers converted
-/// to the transcriber's preferred format.
+/// Persistent microphone capture. One engine lives for the app's lifetime and
+/// is prepared ahead of time — creating a cold AVAudioEngine on every key-down
+/// cost ~100ms of hardware spin-up, which clipped the first words of short
+/// dictations. The mic is only live between start() and stop().
 final class AudioRecorder {
     private let engine = AVAudioEngine()
     private var configObserver: NSObjectProtocol?
@@ -13,12 +15,39 @@ final class AudioRecorder {
     /// Microphone level 0…1 per buffer, delivered on the main queue (drives the HUD waveform).
     var onLevel: ((Float) -> Void)?
 
-    // Read on the audio render thread, written on the main thread.
-    private let runningLock = NSLock()
+    // Written on the main thread, read on the audio render thread.
+    private let stateLock = NSLock()
     private var _running = false
+    private var _bufferHandler: ((AVAudioPCMBuffer) -> Void)?
+
     var isRunning: Bool {
-        get { runningLock.lock(); defer { runningLock.unlock() }; return _running }
-        set { runningLock.lock(); defer { runningLock.unlock() }; _running = newValue }
+        stateLock.lock()
+        defer { stateLock.unlock() }
+        return _running
+    }
+
+    init() {
+        configObserver = NotificationCenter.default.addObserver(
+            forName: .AVAudioEngineConfigurationChange,
+            object: engine,
+            queue: .main
+        ) { [weak self] _ in
+            guard let self, self.isRunning else { return }
+            self.onConfigurationChange?()
+        }
+    }
+
+    deinit {
+        if let configObserver {
+            NotificationCenter.default.removeObserver(configObserver)
+        }
+    }
+
+    /// Touch the input hardware and pre-allocate render resources so the first
+    /// real start() is fast. Does not turn the microphone on.
+    func warmUp() {
+        _ = engine.inputNode.outputFormat(forBus: 0)
+        engine.prepare()
     }
 
     func start(targetFormat: AVAudioFormat?, onBuffer: @escaping (AVAudioPCMBuffer) -> Void) throws {
@@ -39,29 +68,28 @@ final class AudioRecorder {
             target = requested
         }
 
-        configObserver = NotificationCenter.default.addObserver(
-            forName: .AVAudioEngineConfigurationChange,
-            object: engine,
-            queue: .main
-        ) { [weak self] _ in
-            guard let self, self.isRunning else { return }
-            self.onConfigurationChange?()
-        }
+        stateLock.lock()
+        _bufferHandler = onBuffer
+        _running = true
+        stateLock.unlock()
 
-        isRunning = true
         let levelHandler = onLevel
         input.installTap(onBus: 0, bufferSize: 4096, format: native) { [weak self] buffer, _ in
-            guard let self, self.isRunning else { return }
+            guard let self else { return }
+            self.stateLock.lock()
+            let handler = self._running ? self._bufferHandler : nil
+            self.stateLock.unlock()
+            guard let handler else { return }
             if let levelHandler {
                 let level = Self.rmsLevel(buffer)
                 DispatchQueue.main.async { levelHandler(level) }
             }
             if let converter, let target {
                 if let converted = Self.convert(buffer, with: converter, to: target) {
-                    onBuffer(converted)
+                    handler(converted)
                 }
             } else {
-                onBuffer(buffer)
+                handler(buffer)
             }
         }
 
@@ -69,26 +97,23 @@ final class AudioRecorder {
         do {
             try engine.start()
         } catch {
-            isRunning = false
+            stateLock.lock()
+            _running = false
+            _bufferHandler = nil
+            stateLock.unlock()
             input.removeTap(onBus: 0)
-            removeObserver()
             throw error
         }
     }
 
     func stop() {
         guard isRunning else { return }
-        isRunning = false
-        removeObserver()
+        stateLock.lock()
+        _running = false
+        _bufferHandler = nil
+        stateLock.unlock()
         engine.inputNode.removeTap(onBus: 0)
         engine.stop()
-    }
-
-    private func removeObserver() {
-        if let configObserver {
-            NotificationCenter.default.removeObserver(configObserver)
-            self.configObserver = nil
-        }
     }
 
     /// RMS of the buffer mapped from dB into 0…1 for waveform display.

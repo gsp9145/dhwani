@@ -28,7 +28,10 @@ final class DictationController {
     private(set) var assetsReady = false
     private var preparing = false
 
-    private var recorder: AudioRecorder?
+    /// One persistent recorder: the audio engine stays warm across dictations
+    /// so key-down → first captured buffer is fast (a cold engine clipped
+    /// first words). The mic is only live while a dictation is in flight.
+    private let recorder = AudioRecorder()
     private var session: TranscriptionSession?
     private var startedAt = Date()
     private var targetAppName: String?
@@ -46,8 +49,21 @@ final class DictationController {
     private static let handsFreeMaxDuration: TimeInterval = 1200 // 20 min, like Wispr
     private static let finalizeTimeout: TimeInterval = 20
 
-    /// Resolve locale, download the on-device model if needed, cache the audio format.
+    /// Resolve locale, download the on-device model if needed, cache the audio
+    /// format, and warm the audio engine.
     func prepare() {
+        recorder.onLevel = { level in
+            HUD.shared.updateLevel(level)
+        }
+        recorder.onConfigurationChange = { [weak self] in
+            // Input device changed (AirPods connected, mic unplugged): the
+            // engine stops delivering buffers. Salvage what we have.
+            guard let self, self.state == .recording else { return }
+            HUD.shared.show(.error("Microphone changed — finishing dictation"))
+            self.stopDictation()
+        }
+        recorder.warmUp()
+
         guard !preparing, !assetsReady else { return }
         preparing = true
         Task { @MainActor in
@@ -116,26 +132,15 @@ final class DictationController {
         self.session = session
         session.begin()
 
-        let recorder = AudioRecorder()
-        recorder.onLevel = { level in
-            HUD.shared.updateLevel(level)
-        }
-        recorder.onConfigurationChange = { [weak self] in
-            // Input device changed (AirPods connected, mic unplugged): the
-            // engine stops delivering buffers. Salvage what we have.
-            guard let self, self.state == .recording else { return }
-            HUD.shared.show(.error("Microphone changed — finishing dictation"))
-            self.stopDictation()
-        }
-        self.recorder = recorder
         do {
+            let audioStart = Date()
             try recorder.start(targetFormat: cachedAudioFormat) { buffer in
                 session.feed(buffer)
             }
+            DebugLog.log("audio: engine live in \(Int(-audioStart.timeIntervalSinceNow * 1000))ms")
         } catch {
             session.cancel()
             self.session = nil
-            self.recorder = nil
             HUD.shared.show(.error("Couldn't start the microphone"))
             HUD.shared.hide(after: 2.5)
             Sounds.error()
@@ -175,7 +180,7 @@ final class DictationController {
     }
 
     func stopDictation() {
-        guard state == .recording, let session, let recorder else { return }
+        guard state == .recording, let session else { return }
         state = .processing
         maxDurationTimer?.invalidate()
         HUD.shared.show(.processing)
@@ -252,7 +257,7 @@ final class DictationController {
         generation += 1 // any in-flight pipeline abandons at its next check
         pendingStart = false
         maxDurationTimer?.invalidate()
-        recorder?.stop()
+        recorder.stop()
         session?.cancel()
         HUD.shared.setHandsFree(false)
         reset()
@@ -260,7 +265,6 @@ final class DictationController {
 
     private func reset() {
         session = nil
-        recorder = nil
         maxDurationTimer?.invalidate()
         maxDurationTimer = nil
         state = .idle
