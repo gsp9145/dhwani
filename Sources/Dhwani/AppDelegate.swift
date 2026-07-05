@@ -12,13 +12,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         // Single instance: a second copy would double-paste every dictation.
+        // Newest wins — ask older instances to quit (they may be mid-shutdown
+        // from an update/reinstall; self-terminating here would leave the
+        // stale build running).
         if let bundleID = Bundle.main.bundleIdentifier {
-            let others = NSRunningApplication.runningApplications(withBundleIdentifier: bundleID)
+            NSRunningApplication.runningApplications(withBundleIdentifier: bundleID)
                 .filter { $0.processIdentifier != ProcessInfo.processInfo.processIdentifier }
-            if !others.isEmpty {
-                NSApp.terminate(nil)
-                return
-            }
+                .forEach { $0.terminate() }
         }
         setupStatusItem()
         setupDictation()
