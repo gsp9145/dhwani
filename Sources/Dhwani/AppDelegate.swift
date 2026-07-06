@@ -25,6 +25,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         onboardIfNeeded()
         startHotkeysWhenTrusted()
         dictation.prepare()
+        UpdateChecker.beginAutomaticChecks { [weak self] in
+            self?.dictation.state == .idle
+        }
     }
 
     // MARK: - Wiring

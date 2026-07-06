@@ -26,6 +26,7 @@ struct GeneralSettingsView: View {
     @AppStorage("playSounds") private var playSounds = true
     @AppStorage("restoreClipboard") private var restoreClipboard = true
     @AppStorage("showLiveText") private var showLiveText = false
+    @AppStorage("autoUpdate") private var autoUpdate = true
 
     @State private var launchAtLogin = SMAppService.mainApp.status == .enabled
     @State private var accessibilityGranted = Permissions.accessibilityGranted
@@ -70,6 +71,10 @@ struct GeneralSettingsView: View {
             }
 
             Section("System") {
+                Toggle("Automatic updates", isOn: $autoUpdate)
+                Text("Checks GitHub for new versions and installs them quietly when you're not dictating. Sends a version-number request only — never anything about you.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
                 Toggle("Launch at login", isOn: $launchAtLogin)
                     .onChange(of: launchAtLogin) { _, enable in
                         let service = SMAppService.mainApp

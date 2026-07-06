@@ -52,6 +52,10 @@ curl -fsSL https://gsp9145.github.io/dhwani/install.sh | bash
 
 Or download the zip from [Releases](https://github.com/gsp9145/dhwani/releases/latest) — browser downloads are quarantined, so the first launch needs System Settings → Privacy & Security → **Open Anyway** (the build isn't notarized yet).
 
+## Updating
+
+Dhwani keeps itself current: it checks GitHub for new releases in the background and installs them quietly when you're not dictating (Settings → Automatic updates to disable). Re-running the install one-liner works too.
+
 ## Build & run
 
 ```bash

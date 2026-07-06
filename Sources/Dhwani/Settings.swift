@@ -100,6 +100,13 @@ final class Settings {
         set { defaults.set(newValue, forKey: "restoreClipboard") }
     }
 
+    /// Background check + silent install of new releases (version-number
+    /// request to GitHub only — carries nothing about the user).
+    var autoUpdate: Bool {
+        get { defaults.object(forKey: "autoUpdate") as? Bool ?? true }
+        set { defaults.set(newValue, forKey: "autoUpdate") }
+    }
+
     var hasOnboarded: Bool {
         get { defaults.bool(forKey: "hasOnboarded") }
         set { defaults.set(newValue, forKey: "hasOnboarded") }
