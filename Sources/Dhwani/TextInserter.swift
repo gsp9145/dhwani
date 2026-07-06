@@ -1,30 +1,35 @@
 import AppKit
 import Carbon.HIToolbox
 
+enum InsertOutcome {
+    case inserted
+    /// Secure input blocked synthetic keystrokes; text was left on the clipboard.
+    case secureInputBlocked(culprit: String?)
+}
+
 /// Inserts text into the frontmost app, Wispr-style: put it on the pasteboard,
 /// synthesize ⌘V, then restore the user's clipboard.
 enum TextInserter {
     private static let transientType = NSPasteboard.PasteboardType("org.nspasteboard.TransientType")
     private static let vKeyCode: CGKeyCode = 9
 
-    /// Returns false if the text could only be left on the clipboard
-    /// (e.g. a secure input field is active).
     @discardableResult
-    static func insert(_ text: String) -> Bool {
-        if IsSecureEventInputEnabled() {
+    static func insert(_ text: String) -> InsertOutcome {
+        if SecureInput.isActive {
             // Synthetic keystrokes are blocked during secure input (password
-            // fields). Leave the text on the clipboard so nothing is lost.
+            // fields, Terminal's "Secure Keyboard Entry"). Leave the text on
+            // the clipboard so nothing is lost, and report who's blocking.
             let pb = NSPasteboard.general
             pb.clearContents()
             pb.setString(text, forType: .string)
-            return false
+            return .secureInputBlocked(culprit: SecureInput.culprit())
         }
 
         switch Settings.shared.insertMode {
         case .paste: paste(text)
         case .type: type(text)
         }
-        return true
+        return .inserted
     }
 
     private static func paste(_ text: String) {

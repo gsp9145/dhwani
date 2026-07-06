@@ -218,10 +218,8 @@ final class DictationController {
             text = PersonalDictionary.shared.applyReplacements(to: text)
 
             let durationMs = Int(Date().timeIntervalSince(self.startedAt) * 1000)
-            let inserted = TextInserter.insert(text)
-            if inserted {
-                // Deliberately skipped for secure fields: never persist what was
-                // probably a password to plaintext history.
+            switch TextInserter.insert(text) {
+            case .inserted:
                 HistoryStore.shared.save(text: text,
                                          appName: self.targetAppName,
                                          bundleID: self.targetBundleID,
@@ -230,9 +228,22 @@ final class DictationController {
                 HUD.shared.show(.done(words: words))
                 HUD.shared.hide(after: 1.2)
                 Sounds.done()
-            } else {
-                HUD.shared.show(.error("Secure field — text copied to clipboard instead"))
-                HUD.shared.hide(after: 3)
+            case .secureInputBlocked(let culprit):
+                // History deliberately skipped: secure input usually means a
+                // password was dictated; never persist that to plaintext.
+                DebugLog.log("insert: blocked by secure input (culprit: \(culprit ?? "unknown"))")
+                let message: String
+                if let culprit,
+                   culprit.localizedCaseInsensitiveContains("terminal") ||
+                   culprit.localizedCaseInsensitiveContains("iterm") {
+                    message = "\(culprit) has Secure Keyboard Entry on — copied instead (⌘V). Turn it off in \(culprit)'s menu."
+                } else if let culprit {
+                    message = "\(culprit) is blocking paste (secure input) — copied instead, press ⌘V"
+                } else {
+                    message = "Secure input is on — copied instead, press ⌘V"
+                }
+                HUD.shared.show(.error(message))
+                HUD.shared.hide(after: 5)
             }
             self.reset()
         }
