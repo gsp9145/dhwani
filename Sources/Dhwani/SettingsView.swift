@@ -71,6 +71,7 @@ struct GeneralSettingsView: View {
             }
 
             Section("System") {
+                LabeledContent("Version", value: UpdateChecker.currentVersion)
                 Toggle("Automatic updates", isOn: $autoUpdate)
                 Text("Checks GitHub for new versions and installs them quietly when you're not dictating. Sends a version-number request only — never anything about you.")
                     .font(.caption)

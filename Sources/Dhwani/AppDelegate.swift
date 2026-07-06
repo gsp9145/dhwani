@@ -190,6 +190,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         menu.addItem(hotkeyRoot)
 
         menu.addItem(.separator())
+        menu.addItem(disabled("Dhwani v\(UpdateChecker.currentVersion)"))
 
         let settingsItem = NSMenuItem(title: "Settings…", action: #selector(openSettings), keyEquivalent: ",")
         settingsItem.target = self

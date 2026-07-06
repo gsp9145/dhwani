@@ -16,9 +16,21 @@ enum TextInserter {
     @discardableResult
     static func insert(_ text: String) -> InsertOutcome {
         if SecureInput.isActive {
-            // Synthetic keystrokes are blocked during secure input (password
-            // fields, Terminal's "Secure Keyboard Entry"). Leave the text on
-            // the clipboard so nothing is lost, and report who's blocking.
+            // Synthetic keystrokes are blocked during secure input. Two cases:
+            // a real password field (never paste, never persist) vs an app
+            // like Terminal holding "Secure Keyboard Entry" for everything it
+            // does. For the latter, keystrokes are blocked but Accessibility
+            // MENU actions aren't — paste by pressing the app's own
+            // Edit ▸ Paste item.
+            if focusedElementIsSecureField() {
+                let pb = NSPasteboard.general
+                pb.clearContents()
+                pb.setString(text, forType: .string)
+                return .secureInputBlocked(culprit: nil)
+            }
+            if paste(text, via: .menuAction) {
+                return .inserted
+            }
             let pb = NSPasteboard.general
             pb.clearContents()
             pb.setString(text, forType: .string)
@@ -26,13 +38,71 @@ enum TextInserter {
         }
 
         switch Settings.shared.insertMode {
-        case .paste: paste(text)
+        case .paste: _ = paste(text, via: .keystroke)
         case .type: type(text)
         }
         return .inserted
     }
 
-    private static func paste(_ text: String) {
+    /// Is the focused UI element an actual password box?
+    private static func focusedElementIsSecureField() -> Bool {
+        let system = AXUIElementCreateSystemWide()
+        var focusedRef: CFTypeRef?
+        guard AXUIElementCopyAttributeValue(system, kAXFocusedUIElementAttribute as CFString, &focusedRef) == .success,
+              let focused = focusedRef, CFGetTypeID(focused) == AXUIElementGetTypeID() else { return false }
+        var roleRef: CFTypeRef?
+        AXUIElementCopyAttributeValue(focused as! AXUIElement, kAXRoleAttribute as CFString, &roleRef)
+        return (roleRef as? String) == "AXSecureTextField"
+    }
+
+    /// Find the frontmost app's plain-⌘V menu item (Paste, in any language).
+    private static func pasteMenuItem(for pid: pid_t) -> AXUIElement? {
+        let app = AXUIElementCreateApplication(pid)
+        var menuBarRef: CFTypeRef?
+        guard AXUIElementCopyAttributeValue(app, kAXMenuBarAttribute as CFString, &menuBarRef) == .success,
+              let menuBarObj = menuBarRef, CFGetTypeID(menuBarObj) == AXUIElementGetTypeID() else { return nil }
+        let menuBar = menuBarObj as! AXUIElement
+        for top in children(of: menuBar) {
+            for menu in children(of: top) {
+                for item in children(of: menu) {
+                    var charRef: CFTypeRef?
+                    guard AXUIElementCopyAttributeValue(item, kAXMenuItemCmdCharAttribute as CFString, &charRef) == .success,
+                          (charRef as? String) == "V" else { continue }
+                    var modRef: CFTypeRef?
+                    AXUIElementCopyAttributeValue(item, kAXMenuItemCmdModifiersAttribute as CFString, &modRef)
+                    if (modRef as? Int ?? -1) == 0 { // plain ⌘V, no extra modifiers
+                        return item
+                    }
+                }
+            }
+        }
+        return nil
+    }
+
+    private static func children(of element: AXUIElement) -> [AXUIElement] {
+        var ref: CFTypeRef?
+        guard AXUIElementCopyAttributeValue(element, kAXChildrenAttribute as CFString, &ref) == .success,
+              let array = ref as? [AnyObject] else { return [] }
+        return array.compactMap {
+            CFGetTypeID($0) == AXUIElementGetTypeID() ? ($0 as! AXUIElement) : nil
+        }
+    }
+
+    private enum PasteMechanism {
+        case keystroke  // synthetic ⌘V — fast, universal, blocked by secure input
+        case menuAction // AX press on the app's Paste menu item — survives secure input
+    }
+
+    /// Returns false only for .menuAction when no Paste item could be pressed.
+    private static func paste(_ text: String, via mechanism: PasteMechanism) -> Bool {
+        // For menu actions, resolve the target before touching the clipboard.
+        var menuItem: AXUIElement?
+        if case .menuAction = mechanism {
+            guard let pid = NSWorkspace.shared.frontmostApplication?.processIdentifier,
+                  let item = pasteMenuItem(for: pid) else { return false }
+            menuItem = item
+        }
+
         let pb = NSPasteboard.general
 
         var saved: [NSPasteboardItem] = []
@@ -55,18 +125,28 @@ enum TextInserter {
 
         // Give the pasteboard server a moment to settle before the app reads it.
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.08) {
-            postCommandV()
-        }
-
-        guard Settings.shared.restoreClipboard else { return }
-        DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) {
-            // Don't clobber anything the user copied in the meantime.
-            guard pb.changeCount == ourChangeCount else { return }
-            pb.clearContents()
-            if !saved.isEmpty {
-                pb.writeObjects(saved)
+            switch mechanism {
+            case .keystroke:
+                postCommandV()
+            case .menuAction:
+                if let menuItem {
+                    let result = AXUIElementPerformAction(menuItem, kAXPressAction as CFString)
+                    DebugLog.log("insert: menu-action paste \(result == .success ? "pressed" : "failed (\(result.rawValue))")")
+                }
             }
         }
+
+        if Settings.shared.restoreClipboard {
+            DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) {
+                // Don't clobber anything the user copied in the meantime.
+                guard pb.changeCount == ourChangeCount else { return }
+                pb.clearContents()
+                if !saved.isEmpty {
+                    pb.writeObjects(saved)
+                }
+            }
+        }
+        return true
     }
 
     private static func postCommandV() {
