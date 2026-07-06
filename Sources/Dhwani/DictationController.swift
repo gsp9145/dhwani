@@ -152,6 +152,11 @@ final class DictationController {
         HUD.shared.setHandsFree(false)
         HUD.shared.show(.listening)
 
+        // Load the polish model while the user is still speaking.
+        if Settings.shared.aiPolish {
+            AIFormatter.prewarm()
+        }
+
         maxDurationTimer?.invalidate()
         let timer = Timer(timeInterval: Self.maxDuration, repeats: false) { [weak self] _ in
             self?.stopDictation()
