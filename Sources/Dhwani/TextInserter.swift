@@ -151,8 +151,11 @@ enum TextInserter {
 
     private static func postCommandV() {
         guard let source = CGEventSource(stateID: .combinedSessionState) else { return }
-        let down = CGEvent(keyboardEventSource: source, virtualKey: vKeyCode, keyDown: true)
-        let up = CGEvent(keyboardEventSource: source, virtualKey: vKeyCode, keyDown: false)
+        // Non-QWERTY layouts move the letter V to a different physical key; on
+        // non-Latin layouts the lookup fails and the ANSI position is correct.
+        let keyCode = KeyboardLayout.keyCode(for: "v") ?? vKeyCode
+        let down = CGEvent(keyboardEventSource: source, virtualKey: keyCode, keyDown: true)
+        let up = CGEvent(keyboardEventSource: source, virtualKey: keyCode, keyDown: false)
         down?.flags = .maskCommand
         up?.flags = .maskCommand
         down?.post(tap: .cghidEventTap)

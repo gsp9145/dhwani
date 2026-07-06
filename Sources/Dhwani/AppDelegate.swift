@@ -22,12 +22,27 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         }
         setupStatusItem()
         setupDictation()
-        onboardIfNeeded()
         startHotkeysWhenTrusted()
         dictation.prepare()
         UpdateChecker.beginAutomaticChecks { [weak self] in
             self?.dictation.state == .idle
         }
+        // The setup dialog is modal — show it only after everything above is
+        // armed, so the hotkey, model download, and updates aren't hostage to
+        // the user reading a dialog.
+        DispatchQueue.main.async { [weak self] in
+            self?.onboardIfNeeded()
+        }
+    }
+
+    /// Don't lose a dictation that's mid-finalize: give the pipeline a moment
+    /// to insert before quitting (auto-update restarts pass through here too).
+    func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {
+        guard dictation.state == .processing else { return .terminateNow }
+        DispatchQueue.main.asyncAfter(deadline: .now() + 2) {
+            NSApp.reply(toApplicationShouldTerminate: true)
+        }
+        return .terminateLater
     }
 
     // MARK: - Wiring
