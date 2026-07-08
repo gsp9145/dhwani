@@ -27,6 +27,8 @@ struct GeneralSettingsView: View {
     @AppStorage("restoreClipboard") private var restoreClipboard = true
     @AppStorage("showLiveText") private var showLiveText = false
     @AppStorage("autoUpdate") private var autoUpdate = true
+    @AppStorage("dictationLocale") private var dictationLocale = "auto"
+    @State private var languageChoices: [LanguageChoice] = []
 
     @State private var launchAtLogin = SMAppService.mainApp.status == .enabled
     @State private var accessibilityGranted = Permissions.accessibilityGranted
@@ -49,6 +51,19 @@ struct GeneralSettingsView: View {
                     }
                 }
                 Text("Hold to talk · double-tap to lock hands-free · Esc cancels")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                Picker("Language", selection: $dictationLocale) {
+                    Text("Automatic (system)").tag("auto")
+                    ForEach(languageChoices) { choice in
+                        Text(choice.flagship ? choice.displayName : "\(choice.displayName) — standard engine")
+                            .tag(choice.id)
+                    }
+                }
+                .onChange(of: dictationLocale) { _, _ in
+                    NotificationCenter.default.post(name: Settings.localeChanged, object: nil)
+                }
+                Text("Languages marked “standard engine” use Apple's dictation models (54 languages incl. हिन्दी); others use the newest high-accuracy engine. Switching downloads the model once.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
                 Picker("Insert method", selection: $insertMode) {
@@ -147,6 +162,9 @@ struct GeneralSettingsView: View {
         }
         .formStyle(.grouped)
         .onAppear(perform: reload)
+        .task {
+            languageChoices = await SpeechAssets.availableChoices()
+        }
         .onReceive(refresh) { _ in reload() }
         .onChange(of: breakdownRange) { _, _ in reload() }
     }

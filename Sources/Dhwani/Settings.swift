@@ -73,6 +73,14 @@ final class Settings {
         set { defaults.set(newValue.rawValue, forKey: "holdKey") }
     }
 
+    /// bcp47 identifier of the dictation language, or "auto" for the system locale.
+    var dictationLocale: String {
+        get { defaults.string(forKey: "dictationLocale") ?? "auto" }
+        set { defaults.set(newValue, forKey: "dictationLocale") }
+    }
+
+    static let localeChanged = Notification.Name("DhwaniDictationLocaleChanged")
+
     var insertMode: InsertMode {
         get { InsertMode(rawValue: defaults.string(forKey: "insertMode") ?? "") ?? .paste }
         set { defaults.set(newValue.rawValue, forKey: "insertMode") }

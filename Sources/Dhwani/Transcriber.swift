@@ -2,25 +2,82 @@ import AVFoundation
 import Foundation
 import Speech
 
-/// Locale + model-asset management for Apple's on-device SpeechAnalyzer engine.
+/// Which on-device speech engine serves a locale.
+/// - flagship: SpeechTranscriber — Apple's best models, ~30 locales
+/// - dictation: DictationTranscriber — older engine, 54 locales incl. Hindi,
+///   Arabic, Russian, Thai… the long-tail fallback
+enum EngineKind: String {
+    case flagship
+    case dictation
+}
+
+/// A language the user can pick, resolved against both engines.
+struct LanguageChoice: Identifiable, Hashable {
+    let id: String // bcp47
+    let flagship: Bool
+
+    var displayName: String {
+        Locale.current.localizedString(forIdentifier: id) ?? id
+    }
+}
+
+/// Locale + model-asset management for Apple's on-device speech engines.
 @available(macOS 26.0, *)
 enum SpeechAssets {
-    static func resolveLocale() async -> Locale {
-        if let match = await SpeechTranscriber.supportedLocale(equivalentTo: Locale.current) {
-            return match
+    /// Honor the user's language pick; fall back to the system locale.
+    /// Flagship engine wins whenever it supports the locale.
+    static func resolveLocaleAndEngine() async -> (Locale, EngineKind) {
+        let preference = Settings.shared.dictationLocale
+        if preference != "auto" {
+            let wanted = Locale(identifier: preference)
+            if let match = await SpeechTranscriber.supportedLocale(equivalentTo: wanted) {
+                return (match, .flagship)
+            }
+            if let match = await DictationTranscriber.supportedLocale(equivalentTo: wanted) {
+                return (match, .dictation)
+            }
         }
-        return Locale(identifier: "en_US")
+        if let match = await SpeechTranscriber.supportedLocale(equivalentTo: Locale.current) {
+            return (match, .flagship)
+        }
+        if let match = await DictationTranscriber.supportedLocale(equivalentTo: Locale.current) {
+            return (match, .dictation)
+        }
+        return (Locale(identifier: "en_US"), .flagship)
     }
 
-    static func status(locale: Locale) async -> AssetInventory.Status {
-        let probe = SpeechTranscriber(locale: locale, preset: .transcription)
-        return await AssetInventory.status(forModules: [probe])
+    /// Everything dictatable on this machine, across both engines.
+    static func availableChoices() async -> [LanguageChoice] {
+        var byID: [String: LanguageChoice] = [:]
+        for locale in await DictationTranscriber.supportedLocales {
+            let id = locale.identifier(.bcp47)
+            byID[id] = LanguageChoice(id: id, flagship: false)
+        }
+        for locale in await SpeechTranscriber.supportedLocales {
+            let id = locale.identifier(.bcp47)
+            byID[id] = LanguageChoice(id: id, flagship: true)
+        }
+        return byID.values.sorted { $0.displayName.localizedCaseInsensitiveCompare($1.displayName) == .orderedAscending }
+    }
+
+    private static func probe(locale: Locale, engine: EngineKind) -> any SpeechModule {
+        switch engine {
+        case .flagship:
+            return SpeechTranscriber(locale: locale, preset: .transcription)
+        case .dictation:
+            return DictationTranscriber(locale: locale, preset: .shortDictation)
+        }
+    }
+
+    static func status(locale: Locale, engine: EngineKind) async -> AssetInventory.Status {
+        await AssetInventory.status(forModules: [probe(locale: locale, engine: engine)])
     }
 
     /// Downloads and installs the on-device model for the locale if needed.
-    static func ensureInstalled(locale: Locale, onProgress: ((Progress) -> Void)? = nil) async throws {
-        let probe = SpeechTranscriber(locale: locale, preset: .transcription)
-        let status = await AssetInventory.status(forModules: [probe])
+    static func ensureInstalled(locale: Locale, engine: EngineKind,
+                                onProgress: ((Progress) -> Void)? = nil) async throws {
+        let module = probe(locale: locale, engine: engine)
+        let status = await AssetInventory.status(forModules: [module])
         if status == .installed { return }
 
         // Reserve the locale so the system doesn't evict its assets later.
@@ -30,15 +87,14 @@ enum SpeechAssets {
         }
         _ = try? await AssetInventory.reserve(locale: locale)
 
-        if let request = try await AssetInventory.assetInstallationRequest(supporting: [probe]) {
+        if let request = try await AssetInventory.assetInstallationRequest(supporting: [module]) {
             onProgress?(request.progress)
             try await request.downloadAndInstall()
         }
     }
 
-    static func bestAudioFormat(locale: Locale) async -> AVAudioFormat? {
-        let probe = SpeechTranscriber(locale: locale, preset: .transcription)
-        return await SpeechAnalyzer.bestAvailableAudioFormat(compatibleWith: [probe])
+    static func bestAudioFormat(locale: Locale, engine: EngineKind) async -> AVAudioFormat? {
+        await SpeechAnalyzer.bestAvailableAudioFormat(compatibleWith: [probe(locale: locale, engine: engine)])
     }
 }
 
@@ -47,7 +103,19 @@ enum SpeechAssets {
 /// starts the analyzer; buffers queued in the AsyncStream are never lost.
 @available(macOS 26.0, *)
 final class TranscriptionSession {
-    private let transcriber: SpeechTranscriber
+    private enum Engine {
+        case flagship(SpeechTranscriber)
+        case dictation(DictationTranscriber)
+
+        var module: any SpeechModule {
+            switch self {
+            case .flagship(let t): return t
+            case .dictation(let t): return t
+            }
+        }
+    }
+
+    private let engine: Engine
     private let analyzer: SpeechAnalyzer
     private let stream: AsyncStream<AnalyzerInput>
     private let inputBuilder: AsyncStream<AnalyzerInput>.Continuation
@@ -62,15 +130,23 @@ final class TranscriptionSession {
     /// Called on the main thread with the live (partial) transcript.
     var onPartial: ((String) -> Void)?
 
-    init(locale: Locale) {
-        let transcriber = SpeechTranscriber(locale: locale,
-                                            transcriptionOptions: [],
-                                            reportingOptions: [.volatileResults, .fastResults],
-                                            attributeOptions: [])
-        self.transcriber = transcriber
+    init(locale: Locale, engineKind: EngineKind) {
+        switch engineKind {
+        case .flagship:
+            engine = .flagship(SpeechTranscriber(locale: locale,
+                                                 transcriptionOptions: [],
+                                                 reportingOptions: [.volatileResults, .fastResults],
+                                                 attributeOptions: []))
+        case .dictation:
+            engine = .dictation(DictationTranscriber(locale: locale,
+                                                     contentHints: [],
+                                                     transcriptionOptions: [.punctuation],
+                                                     reportingOptions: [.volatileResults],
+                                                     attributeOptions: []))
+        }
         // .processLifetime keeps the speech model hot between dictations, so the
         // second and later sessions start with near-zero model-load latency.
-        self.analyzer = SpeechAnalyzer(modules: [transcriber],
+        self.analyzer = SpeechAnalyzer(modules: [engine.module],
                                        options: SpeechAnalyzer.Options(priority: .userInitiated,
                                                                        modelRetention: .processLifetime))
         (self.stream, self.inputBuilder) = AsyncStream<AnalyzerInput>.makeStream()
@@ -136,15 +212,25 @@ final class TranscriptionSession {
 
     private func consumeResults() async {
         do {
-            for try await result in transcriber.results {
-                let text = String(result.text.characters)
-                let snapshot = record(text, isFinal: result.isFinal)
-                DispatchQueue.main.async { [weak self] in
-                    self?.onPartial?(snapshot)
+            switch engine {
+            case .flagship(let transcriber):
+                for try await result in transcriber.results {
+                    publish(String(result.text.characters), isFinal: result.isFinal)
+                }
+            case .dictation(let transcriber):
+                for try await result in transcriber.results {
+                    publish(String(result.text.characters), isFinal: result.isFinal)
                 }
             }
         } catch {
             NSLog("Dhwani: transcriber results ended with error: \(error)")
+        }
+    }
+
+    private func publish(_ text: String, isFinal: Bool) {
+        let snapshot = record(text, isFinal: isFinal)
+        DispatchQueue.main.async { [weak self] in
+            self?.onPartial?(snapshot)
         }
     }
 }

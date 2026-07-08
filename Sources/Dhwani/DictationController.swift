@@ -24,9 +24,11 @@ final class DictationController {
     var hotkeyStillHeld: (() -> Bool)?
 
     private var locale = Locale(identifier: "en_US")
+    private var engineKind: EngineKind = .flagship
     private var cachedAudioFormat: AVAudioFormat?
     private(set) var assetsReady = false
     private var preparing = false
+    private var localeObserver: NSObjectProtocol?
 
     /// One persistent recorder: the audio engine stays warm across dictations
     /// so key-down → first captured buffer is fast (a cold engine clipped
@@ -64,18 +66,32 @@ final class DictationController {
         }
         recorder.warmUp()
 
+        // Re-resolve engine + model when the user picks another language.
+        if localeObserver == nil {
+            localeObserver = NotificationCenter.default.addObserver(
+                forName: Settings.localeChanged, object: nil, queue: .main
+            ) { [weak self] _ in
+                guard let self else { return }
+                self.assetsReady = false
+                self.prepare()
+            }
+        }
+
         guard !preparing, !assetsReady else { return }
         preparing = true
         Task { @MainActor in
             defer { self.preparing = false }
-            self.locale = await SpeechAssets.resolveLocale()
-            let status = await SpeechAssets.status(locale: self.locale)
+            let (locale, engineKind) = await SpeechAssets.resolveLocaleAndEngine()
+            self.locale = locale
+            self.engineKind = engineKind
+            DebugLog.log("assets: locale \(locale.identifier(.bcp47)) via \(engineKind.rawValue) engine")
+            let status = await SpeechAssets.status(locale: locale, engine: engineKind)
             if status != .installed {
-                HUD.shared.show(.info("Downloading Apple speech model…"))
+                HUD.shared.show(.info("Downloading speech model for \(Locale.current.localizedString(forIdentifier: locale.identifier) ?? locale.identifier)…"))
             }
             do {
-                try await SpeechAssets.ensureInstalled(locale: self.locale)
-                self.cachedAudioFormat = await SpeechAssets.bestAudioFormat(locale: self.locale)
+                try await SpeechAssets.ensureInstalled(locale: locale, engine: engineKind)
+                self.cachedAudioFormat = await SpeechAssets.bestAudioFormat(locale: locale, engine: engineKind)
                 self.assetsReady = true
                 if status != .installed {
                     HUD.shared.show(.info("Ready — hold \(Settings.shared.holdKey.shortName) to dictate"))
@@ -124,7 +140,7 @@ final class DictationController {
         targetAppName = frontmost?.localizedName
         targetBundleID = frontmost?.bundleIdentifier
 
-        let session = TranscriptionSession(locale: locale)
+        let session = TranscriptionSession(locale: locale, engineKind: engineKind)
         session.onPartial = { [weak self] text in
             guard self?.state == .recording else { return }
             HUD.shared.update(text: text)
