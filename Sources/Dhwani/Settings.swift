@@ -108,6 +108,12 @@ final class Settings {
         set { defaults.set(newValue, forKey: "restoreClipboard") }
     }
 
+    /// Background AI titling/tagging of history entries (on-device, after paste).
+    var smartHistory: Bool {
+        get { defaults.object(forKey: "smartHistory") as? Bool ?? true }
+        set { defaults.set(newValue, forKey: "smartHistory") }
+    }
+
     /// Background check + silent install of new releases (version-number
     /// request to GitHub only — carries nothing about the user).
     var autoUpdate: Bool {

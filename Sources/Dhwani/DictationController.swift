@@ -248,11 +248,22 @@ final class DictationController {
             let durationMs = Int(Date().timeIntervalSince(self.startedAt) * 1000)
             switch TextInserter.insert(text) {
             case .inserted:
-                HistoryStore.shared.save(text: text,
-                                         rawText: text == rawText ? nil : rawText,
-                                         appName: self.targetAppName,
-                                         bundleID: self.targetBundleID,
-                                         durationMs: durationMs)
+                let entryID = HistoryStore.shared.save(text: text,
+                                                       rawText: text == rawText ? nil : rawText,
+                                                       appName: self.targetAppName,
+                                                       bundleID: self.targetBundleID,
+                                                       durationMs: durationMs)
+                // Smart history: label the entry in the background — the text
+                // is already pasted; this can never affect it.
+                if Settings.shared.smartHistory {
+                    let entryText = text
+                    Task.detached(priority: .utility) {
+                        if let meta = await AIFormatter.label(entryText) {
+                            HistoryStore.shared.updateMeta(id: entryID, title: meta.title, tags: meta.tags)
+                            DebugLog.log("label: '\(meta.title)' [\(meta.tags.joined(separator: ", "))]")
+                        }
+                    }
+                }
                 let words = text.split(whereSeparator: { $0.isWhitespace }).count
                 HUD.shared.show(.done(words: words))
                 HUD.shared.hide(after: 1.2)

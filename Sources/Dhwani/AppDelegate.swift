@@ -176,7 +176,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             timeFormatter.dateFormat = "HH:mm"
             for entry in recents {
                 let preview = entry.text.count > 48 ? String(entry.text.prefix(48)) + "…" : entry.text
-                let item = NSMenuItem(title: "\(timeFormatter.string(from: entry.date)) · \(entry.appName)  \(preview)",
+                let label = entry.title ?? preview
+                let item = NSMenuItem(title: "\(timeFormatter.string(from: entry.date)) · \(entry.appName)  \(label)",
                                       action: #selector(copyRecent(_:)), keyEquivalent: "")
                 item.target = self
                 item.representedObject = entry.text

@@ -113,6 +113,54 @@ enum AIFormatter {
         #endif
     }
 
+    /// Title + topic tags for the history, in one schema-constrained call.
+    /// Runs in the background after insertion — can never affect pasted text.
+    /// Returns nil when unavailable, unsupported language, timeout, or failure.
+    static func label(_ text: String, timeout: TimeInterval = 5) async -> (title: String, tags: [String])? {
+        #if canImport(FoundationModels)
+        guard #available(macOS 26.0, *) else { return nil }
+        guard case .available = SystemLanguageModel.default.availability else { return nil }
+        guard text.count > 40, text.count < 6000 else { return nil }
+
+        guard let schema = try? GenerationSchema(
+            root: DynamicGenerationSchema(
+                name: "EntryMeta",
+                description: "Metadata labeling a dictation transcript",
+                properties: [
+                    .init(name: "title",
+                          description: "3-6 word title describing the dictation",
+                          schema: DynamicGenerationSchema(type: String.self)),
+                    .init(name: "tags",
+                          description: "1-3 short lowercase topic tags",
+                          schema: DynamicGenerationSchema(arrayOf: DynamicGenerationSchema(type: String.self),
+                                                          maximumElements: 3)),
+                ]),
+            dependencies: []) else { return nil }
+
+        let session = LanguageModelSession(instructions: "You label dictation transcripts for a searchable history.")
+        let result: (String, [String])? = await withTimeout(seconds: timeout) { () -> (String, [String])? in
+            do {
+                let content = try await session.respond(to: "Label this dictation:\n\(text)",
+                                                        schema: schema,
+                                                        options: GenerationOptions(sampling: .greedy)).content
+                let title: String = try content.value(String.self, forProperty: "title")
+                let tags: [String] = try content.value([String].self, forProperty: "tags")
+                return (title, tags)
+            } catch {
+                DebugLog.log("label: failed (\(error))")
+                return nil
+            }
+        } ?? nil
+
+        guard let (title, tags) = result,
+              !title.trimmingCharacters(in: .whitespaces).isEmpty else { return nil }
+        return (title.trimmingCharacters(in: .whitespaces),
+                tags.map { $0.lowercased().trimmingCharacters(in: .whitespaces) }.filter { !$0.isEmpty })
+        #else
+        return nil
+        #endif
+    }
+
     /// Deletion-only cleanup: the output must be the speaker's words, in the
     /// speaker's order, with only removals (fillers, false starts, corrected-
     /// away segments) and punctuation changes. Anything that adds, replaces,

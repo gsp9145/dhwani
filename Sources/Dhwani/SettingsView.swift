@@ -27,6 +27,7 @@ struct GeneralSettingsView: View {
     @AppStorage("restoreClipboard") private var restoreClipboard = true
     @AppStorage("showLiveText") private var showLiveText = false
     @AppStorage("autoUpdate") private var autoUpdate = true
+    @AppStorage("smartHistory") private var smartHistory = true
     @AppStorage("dictationLocale") private var dictationLocale = "auto"
     @State private var languageChoices: [LanguageChoice] = []
 
@@ -87,6 +88,11 @@ struct GeneralSettingsView: View {
                         .foregroundStyle(.secondary)
                 }
                 Toggle("Restore clipboard after paste", isOn: $restoreClipboard)
+                Toggle("Smart history titles & topics", isOn: $smartHistory)
+                    .disabled(!AIFormatter.isAvailable)
+                Text("Labels each dictation on-device after the text is already pasted — makes Recent and the history searchable. Never touches what you typed.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
             }
 
             Section("System") {

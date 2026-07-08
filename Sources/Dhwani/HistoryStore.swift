@@ -8,6 +8,7 @@ struct TranscriptEntry {
     let appName: String
     let words: Int
     let durationMs: Int
+    var title: String?
 }
 
 /// Every dictation is stored twice: in SQLite (stats, recents) and appended to
@@ -58,9 +59,10 @@ final class HistoryStore {
             );
             """)
             exec("CREATE INDEX IF NOT EXISTS idx_transcripts_day ON transcripts(day);")
-            // Migration: raw (pre-polish) text alongside the final text.
-            // Errors are expected when the column already exists — stay quiet.
+            // Migrations — errors are expected when a column exists; stay quiet.
             sqlite3_exec(db, "ALTER TABLE transcripts ADD COLUMN raw_text TEXT;", nil, nil, nil)
+            sqlite3_exec(db, "ALTER TABLE transcripts ADD COLUMN title TEXT;", nil, nil, nil)
+            sqlite3_exec(db, "ALTER TABLE transcripts ADD COLUMN tags TEXT;", nil, nil, nil)
         } else {
             NSLog("Dhwani: failed to open history database at \(path)")
         }
@@ -74,13 +76,33 @@ final class HistoryStore {
         }
     }
 
-    func save(text: String, rawText: String? = nil, appName: String?, bundleID: String?, durationMs: Int) {
+    /// Returns the new row's id so background labeling can attach metadata.
+    @discardableResult
+    func save(text: String, rawText: String? = nil, appName: String?, bundleID: String?, durationMs: Int) -> Int64 {
         let now = Date()
         let words = text.split(whereSeparator: { $0.isWhitespace }).count
+        let id: Int64 = queue.sync {
+            insertRow(date: now, text: text, rawText: rawText, appName: appName, bundleID: bundleID,
+                      words: words, durationMs: durationMs)
+            return sqlite3_last_insert_rowid(db)
+        }
         queue.async {
-            self.insertRow(date: now, text: text, rawText: rawText, appName: appName, bundleID: bundleID,
-                           words: words, durationMs: durationMs)
             self.appendMarkdown(date: now, text: text, rawText: rawText, appName: appName)
+        }
+        return id
+    }
+
+    /// Attach an AI-generated title and topic tags to an entry (background).
+    func updateMeta(id: Int64, title: String, tags: [String]) {
+        queue.async {
+            let sql = "UPDATE transcripts SET title = ?, tags = ? WHERE id = ?;"
+            var stmt: OpaquePointer?
+            guard sqlite3_prepare_v2(self.db, sql, -1, &stmt, nil) == SQLITE_OK else { return }
+            defer { sqlite3_finalize(stmt) }
+            sqlite3_bind_text(stmt, 1, title, -1, self.sqliteTransient)
+            sqlite3_bind_text(stmt, 2, tags.joined(separator: ", "), -1, self.sqliteTransient)
+            sqlite3_bind_int64(stmt, 3, id)
+            sqlite3_step(stmt)
         }
     }
 
@@ -188,7 +210,7 @@ final class HistoryStore {
 
     func recent(limit: Int) -> [TranscriptEntry] {
         queue.sync {
-            let sql = "SELECT id, ts, text, app_name, words, duration_ms FROM transcripts ORDER BY ts DESC LIMIT ?;"
+            let sql = "SELECT id, ts, text, app_name, words, duration_ms, title FROM transcripts ORDER BY ts DESC LIMIT ?;"
             var stmt: OpaquePointer?
             guard sqlite3_prepare_v2(db, sql, -1, &stmt, nil) == SQLITE_OK else { return [] }
             defer { sqlite3_finalize(stmt) }
@@ -197,12 +219,14 @@ final class HistoryStore {
             while sqlite3_step(stmt) == SQLITE_ROW {
                 let text = sqlite3_column_text(stmt, 2).map { String(cString: $0) } ?? ""
                 let app = sqlite3_column_text(stmt, 3).map { String(cString: $0) } ?? ""
+                let title = sqlite3_column_text(stmt, 6).map { String(cString: $0) }
                 entries.append(TranscriptEntry(id: sqlite3_column_int64(stmt, 0),
                                                date: Date(timeIntervalSince1970: sqlite3_column_double(stmt, 1)),
                                                text: text,
                                                appName: app,
                                                words: Int(sqlite3_column_int64(stmt, 4)),
-                                               durationMs: Int(sqlite3_column_int64(stmt, 5))))
+                                               durationMs: Int(sqlite3_column_int64(stmt, 5)),
+                                               title: title))
             }
             return entries
         }
