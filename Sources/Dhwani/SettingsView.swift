@@ -62,7 +62,11 @@ struct GeneralSettingsView: View {
             Section("Text") {
                 Toggle("AI Polish (on-device)", isOn: $aiPolish)
                     .disabled(!AIFormatter.isAvailable)
-                if !AIFormatter.isAvailable {
+                if AIFormatter.isAvailable {
+                    Text("Deletion-only cleanup: fillers out, self-corrections applied, your words never rewritten. Hold ⌥ while releasing the dictation key to flip this choice for a single dictation — ✦ on the pill shows it's armed.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                } else {
                     Text("Requires Apple Intelligence (System Settings → Apple Intelligence & Siri). The toggle enables itself once available.")
                         .font(.caption)
                         .foregroundStyle(.secondary)

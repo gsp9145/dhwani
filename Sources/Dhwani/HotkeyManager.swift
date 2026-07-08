@@ -13,7 +13,10 @@ import CoreGraphics
 /// on the main thread and callbacks are invoked synchronously.
 final class HotkeyManager {
     var onHoldBegan: (() -> Void)?
-    var onHoldEnded: (() -> Void)?
+    /// The bool is the polish modifier: was ⌥ held when the dictation ended?
+    var onHoldEnded: ((_ polishModifier: Bool) -> Void)?
+    /// Live ⌥ state while recording, for the pill's ✦ indicator.
+    var onPolishArm: ((Bool) -> Void)?
     var onCancel: (() -> Void)?
     /// Fired when a double-tap locks hands-free recording.
     var onHandsFreeLocked: (() -> Void)?
@@ -92,7 +95,7 @@ final class HotkeyManager {
 
     // MARK: - Gesture state machine
 
-    private func hotkeyDown(_ key: HoldKey) {
+    private func hotkeyDown(_ key: HoldKey, flags: CGEventFlags) {
         keyIsDown = true
 
         if isHandsFree {
@@ -101,7 +104,7 @@ final class HotkeyManager {
             isHandsFree = false
             gestureKey = nil
             swallowNextRelease = true
-            onHoldEnded?()
+            onHoldEnded?(flags.contains(.maskAlternate))
             return
         }
         if doubleTapTimer != nil {
@@ -122,8 +125,9 @@ final class HotkeyManager {
         onHoldBegan?()
     }
 
-    private func hotkeyUp() {
+    private func hotkeyUp(flags: CGEventFlags) {
         keyIsDown = false
+        let polish = flags.contains(.maskAlternate)
         if swallowNextRelease {
             swallowNextRelease = false
             DebugLog.log("gesture: key up (swallowed)")
@@ -143,7 +147,7 @@ final class HotkeyManager {
                 // Tap-then-hold: an ordinary dictation — insert on release.
                 DebugLog.log("gesture: tap-then-hold release (\(Int(held * 1000))ms) → insert")
                 gestureKey = nil
-                onHoldEnded?()
+                onHoldEnded?(polish)
             }
             return
         }
@@ -163,9 +167,9 @@ final class HotkeyManager {
             RunLoop.main.add(timer, forMode: .common)
             doubleTapTimer = timer
         } else {
-            DebugLog.log("gesture: hold release (\(Int(held * 1000))ms) → insert")
+            DebugLog.log("gesture: hold release (\(Int(held * 1000))ms) → insert\(polish ? " +polish" : "")")
             gestureKey = nil
-            onHoldEnded?()
+            onHoldEnded?(polish)
         }
     }
 
@@ -230,6 +234,12 @@ final class HotkeyManager {
             DebugLog.log("event: keyDown code=\(keyCode) during dictation (keyIsDown=\(keyIsDown) window=\(doubleTapTimer != nil) handsFree=\(isHandsFree))")
         }
 
+        // Live ✦ hint: while recording, ⌥ arms per-dictation polish (skip when
+        // the option key itself is the dictation key).
+        if recording, type == .flagsChanged, keyCode == 58 || keyCode == 61, keyCode != hotkey.keyCode {
+            onPolishArm?(event.flags.contains(.maskAlternate))
+        }
+
         if hotkey.isModifier {
             if type == .flagsChanged, keyCode == hotkey.keyCode {
                 let isDown: Bool
@@ -243,9 +253,9 @@ final class HotkeyManager {
                     isDown = false
                 }
                 if isDown, !keyIsDown {
-                    hotkeyDown(hotkey)
+                    hotkeyDown(hotkey, flags: event.flags)
                 } else if !isDown, keyIsDown {
-                    hotkeyUp()
+                    hotkeyUp(flags: event.flags)
                 }
                 // Swallow Fn so the system Globe action (emoji picker / input
                 // source switch) never fires from a dictation press. Fn as a
@@ -266,9 +276,9 @@ final class HotkeyManager {
         } else if keyCode == hotkey.keyCode {
             let isRepeat = event.getIntegerValueField(.keyboardEventAutorepeat) != 0
             if type == .keyDown, !isRepeat, !keyIsDown {
-                hotkeyDown(hotkey)
+                hotkeyDown(hotkey, flags: event.flags)
             } else if type == .keyUp, keyIsDown {
-                hotkeyUp()
+                hotkeyUp(flags: event.flags)
             }
             // Swallow the hotkey so it doesn't reach the frontmost app.
             return nil

@@ -60,7 +60,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             (self?.dictation.state ?? .idle) != .idle
         }
         hotkeys.onHoldBegan = { [weak self] in self?.dictation.startDictation() }
-        hotkeys.onHoldEnded = { [weak self] in self?.dictation.stopDictation() }
+        hotkeys.onHoldEnded = { [weak self] polish in self?.dictation.stopDictation(polishModifier: polish) }
+        hotkeys.onPolishArm = { armed in HUD.shared.setPolishArmed(armed) }
         hotkeys.onCancel = { [weak self] in self?.dictation.cancelDictation() }
         hotkeys.onHandsFreeLocked = { [weak self] in self?.dictation.lockHandsFree() }
         hotkeys.onTapTimeout = { [weak self] in self?.dictation.dismissAccidentalTap() }
@@ -163,6 +164,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         let total = HistoryStore.shared.totalStats()
 
         menu.addItem(disabled("Hold \(Settings.shared.holdKey.shortName) to dictate · double-tap for hands-free · Esc cancels"))
+        menu.addItem(disabled("Hold ⌥ at release to \(Settings.shared.aiPolish ? "skip" : "apply") AI polish for one dictation"))
         menu.addItem(disabled("Today: \(today.words) words · \(today.notes) notes"))
         menu.addItem(disabled("All time: \(total.words) words · \(total.notes) notes"))
         menu.addItem(.separator())

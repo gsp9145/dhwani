@@ -101,6 +101,8 @@ final class HUD {
     private let effect: NSVisualEffectView
     private let wave = WaveformView(frame: .zero)
     private let label = NSTextField(labelWithString: "")
+    /// Per-dictation polish indicator (⌥ held): a small ✦ on the pill's edge.
+    private let star = NSTextField(labelWithString: "✦")
     private var hideTimer: Timer?
     private var mode: Mode = .text
 
@@ -141,8 +143,14 @@ final class HUD {
         label.maximumNumberOfLines = 1
         label.alignment = .center
 
+        star.font = .systemFont(ofSize: 11, weight: .semibold)
+        star.textColor = .systemPurple
+        star.alignment = .center
+        star.isHidden = true
+
         effect.addSubview(wave)
         effect.addSubview(label)
+        effect.addSubview(star)
         panel.contentView = effect
 
         wave.onPulse = { [weak self] activity in
@@ -173,6 +181,14 @@ final class HUD {
     func setHandsFree(_ on: Bool) {
         DispatchQueue.main.async {
             self.wave.tint = on ? .systemRed : .labelColor
+        }
+    }
+
+    /// ✦ appears while ⌥ is held during recording — this dictation's polish
+    /// choice is flipped.
+    func setPolishArmed(_ armed: Bool) {
+        DispatchQueue.main.async {
+            self.star.isHidden = !(armed && (self.mode == .compactWave || self.mode == .live))
         }
     }
 
@@ -235,6 +251,7 @@ final class HUD {
         let width = Self.compactWidth + max(0, min(1, activity)) * Self.breatheRange
         setPanelWidth(width)
         wave.frame = NSRect(x: 0, y: 4, width: width, height: Self.pillHeight - 8)
+        star.frame = NSRect(x: width - 20, y: (Self.pillHeight - 14) / 2, width: 14, height: 14)
     }
 
     private func layoutCompactWave() {
@@ -242,6 +259,7 @@ final class HUD {
         label.isHidden = true
         wave.isHidden = false
         wave.frame = NSRect(x: 0, y: 4, width: Self.compactWidth, height: Self.pillHeight - 8)
+        star.frame = NSRect(x: Self.compactWidth - 20, y: (Self.pillHeight - 14) / 2, width: 14, height: 14)
         setPanelWidth(Self.compactWidth)
     }
 
@@ -250,12 +268,14 @@ final class HUD {
         label.isHidden = false
         wave.isHidden = false
         wave.frame = NSRect(x: 12, y: 4, width: 72, height: Self.pillHeight - 8)
-        label.frame = NSRect(x: 92, y: (Self.pillHeight - 16) / 2, width: Self.liveWidth - 112, height: 16)
+        label.frame = NSRect(x: 92, y: (Self.pillHeight - 16) / 2, width: Self.liveWidth - 128, height: 16)
+        star.frame = NSRect(x: Self.liveWidth - 24, y: (Self.pillHeight - 14) / 2, width: 14, height: 14)
         setPanelWidth(Self.liveWidth)
     }
 
     private func layoutText(_ text: String) {
         mode = .text
+        star.isHidden = true
         wave.isHidden = true
         label.isHidden = false
         label.stringValue = text

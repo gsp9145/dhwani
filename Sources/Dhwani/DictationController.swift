@@ -184,12 +184,18 @@ final class DictationController {
         }
     }
 
-    func stopDictation() {
+    func stopDictation(polishModifier: Bool = false) {
         guard state == .recording, let session else { return }
         state = .processing
         maxDurationTimer?.invalidate()
         HUD.shared.show(.processing)
         let gen = generation
+        // ⌥ at release flips the global polish default for this one dictation.
+        let defaultPolish = Settings.shared.aiPolish
+        let usePolish = (polishModifier ? !defaultPolish : defaultPolish) && AIFormatter.isAvailable
+        if polishModifier {
+            DebugLog.log("polish: per-dictation override → \(usePolish ? "on" : "off")")
+        }
 
         Task { @MainActor in
             // Capture a short audio tail so the last word isn't clipped.
@@ -216,7 +222,8 @@ final class DictationController {
                 return
             }
 
-            if Settings.shared.aiPolish, let polished = await AIFormatter.polish(text) {
+            let rawText = text
+            if usePolish, let polished = await AIFormatter.polish(text) {
                 text = polished
             }
             guard gen == self.generation else { return } // cancelled during polish
@@ -226,6 +233,7 @@ final class DictationController {
             switch TextInserter.insert(text) {
             case .inserted:
                 HistoryStore.shared.save(text: text,
+                                         rawText: text == rawText ? nil : rawText,
                                          appName: self.targetAppName,
                                          bundleID: self.targetBundleID,
                                          durationMs: durationMs)

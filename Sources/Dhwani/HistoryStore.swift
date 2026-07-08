@@ -58,6 +58,9 @@ final class HistoryStore {
             );
             """)
             exec("CREATE INDEX IF NOT EXISTS idx_transcripts_day ON transcripts(day);")
+            // Migration: raw (pre-polish) text alongside the final text.
+            // Errors are expected when the column already exists — stay quiet.
+            sqlite3_exec(db, "ALTER TABLE transcripts ADD COLUMN raw_text TEXT;", nil, nil, nil)
         } else {
             NSLog("Dhwani: failed to open history database at \(path)")
         }
@@ -71,33 +74,38 @@ final class HistoryStore {
         }
     }
 
-    func save(text: String, appName: String?, bundleID: String?, durationMs: Int) {
+    func save(text: String, rawText: String? = nil, appName: String?, bundleID: String?, durationMs: Int) {
         let now = Date()
         let words = text.split(whereSeparator: { $0.isWhitespace }).count
         queue.async {
-            self.insertRow(date: now, text: text, appName: appName, bundleID: bundleID,
+            self.insertRow(date: now, text: text, rawText: rawText, appName: appName, bundleID: bundleID,
                            words: words, durationMs: durationMs)
-            self.appendMarkdown(date: now, text: text, appName: appName)
+            self.appendMarkdown(date: now, text: text, rawText: rawText, appName: appName)
         }
     }
 
-    private func insertRow(date: Date, text: String, appName: String?, bundleID: String?,
+    private func insertRow(date: Date, text: String, rawText: String?, appName: String?, bundleID: String?,
                            words: Int, durationMs: Int) {
-        let sql = "INSERT INTO transcripts (ts, day, text, app_name, app_bundle_id, words, duration_ms) VALUES (?,?,?,?,?,?,?);"
+        let sql = "INSERT INTO transcripts (ts, day, text, raw_text, app_name, app_bundle_id, words, duration_ms) VALUES (?,?,?,?,?,?,?,?);"
         var stmt: OpaquePointer?
         guard sqlite3_prepare_v2(db, sql, -1, &stmt, nil) == SQLITE_OK else { return }
         defer { sqlite3_finalize(stmt) }
         sqlite3_bind_double(stmt, 1, date.timeIntervalSince1970)
         sqlite3_bind_text(stmt, 2, dayFormatter.string(from: date), -1, sqliteTransient)
         sqlite3_bind_text(stmt, 3, text, -1, sqliteTransient)
-        sqlite3_bind_text(stmt, 4, appName ?? "Unknown", -1, sqliteTransient)
-        sqlite3_bind_text(stmt, 5, bundleID ?? "", -1, sqliteTransient)
-        sqlite3_bind_int64(stmt, 6, Int64(words))
-        sqlite3_bind_int64(stmt, 7, Int64(durationMs))
+        if let rawText {
+            sqlite3_bind_text(stmt, 4, rawText, -1, sqliteTransient)
+        } else {
+            sqlite3_bind_null(stmt, 4)
+        }
+        sqlite3_bind_text(stmt, 5, appName ?? "Unknown", -1, sqliteTransient)
+        sqlite3_bind_text(stmt, 6, bundleID ?? "", -1, sqliteTransient)
+        sqlite3_bind_int64(stmt, 7, Int64(words))
+        sqlite3_bind_int64(stmt, 8, Int64(durationMs))
         sqlite3_step(stmt)
     }
 
-    private func appendMarkdown(date: Date, text: String, appName: String?) {
+    private func appendMarkdown(date: Date, text: String, rawText: String?, appName: String?) {
         let day = dayFormatter.string(from: date)
         let file = Self.transcriptsFolder.appendingPathComponent("\(day).md")
         var chunk = ""
@@ -105,6 +113,9 @@ final class HistoryStore {
             chunk += "# Dhwani transcripts — \(day)\n\n"
         }
         chunk += "### \(timeFormatter.string(from: date)) — \(appName ?? "Unknown")\n\n\(text)\n\n"
+        if let rawText {
+            chunk += "> raw: \(rawText)\n\n"
+        }
         guard let data = chunk.data(using: .utf8) else { return }
         if let handle = try? FileHandle(forWritingTo: file) {
             defer { try? handle.close() }
