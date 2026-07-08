@@ -178,15 +178,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             for entry in recents {
                 let preview = entry.text.count > 48 ? String(entry.text.prefix(48)) + "…" : entry.text
                 let label = entry.title ?? preview
-                let item = NSMenuItem(title: "\(timeFormatter.string(from: entry.date)) · \(entry.appName)  \(label)",
-                                      action: #selector(copyRecent(_:)), keyEquivalent: "")
-                item.target = self
-                item.representedObject = entry.text
-                // Hover shows the whole transcript so the right entry is easy
-                // to confirm before copying. Cap pathological lengths.
-                item.toolTip = entry.text.count > 1500
-                    ? String(entry.text.prefix(1500)) + "…"
-                    : entry.text
+                let item = NSMenuItem()
+                // Custom view: hover previews the full transcript to the left
+                // of the menu (native tooltips overlap the menu); click copies.
+                item.view = RecentMenuItemView(
+                    label: "\(timeFormatter.string(from: entry.date)) · \(entry.appName)  \(label)",
+                    fullText: entry.text
+                ) { [weak self] text in self?.copyText(text) }
                 recentMenu.addItem(item)
             }
             let recentRoot = NSMenuItem(title: "Recent (click to copy)", action: nil, keyEquivalent: "")
@@ -279,8 +277,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         }
     }
 
-    @objc private func copyRecent(_ sender: NSMenuItem) {
-        guard let text = sender.representedObject as? String else { return }
+    func copyText(_ text: String) {
         let pb = NSPasteboard.general
         pb.clearContents()
         pb.setString(text, forType: .string)
