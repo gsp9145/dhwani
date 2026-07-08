@@ -25,23 +25,33 @@ struct LanguageChoice: Identifiable, Hashable {
 @available(macOS 26.0, *)
 enum SpeechAssets {
     /// Honor the user's language pick; fall back to the system locale.
-    /// Flagship engine wins whenever it supports the locale.
+    /// Flagship engine wins whenever it *genuinely* supports the locale.
+    ///
+    /// Note: `SpeechTranscriber.supportedLocale(equivalentTo:)` fuzzy-matches
+    /// and returns non-nil even for locales it can't actually serve (e.g.
+    /// hi-IN) — trusting it routed Hindi to the flagship engine, whose model
+    /// download then failed. So we verify against the real supportedLocales
+    /// membership list instead.
     static func resolveLocaleAndEngine() async -> (Locale, EngineKind) {
-        let preference = Settings.shared.dictationLocale
-        if preference != "auto" {
-            let wanted = Locale(identifier: preference)
-            if let match = await SpeechTranscriber.supportedLocale(equivalentTo: wanted) {
+        let flagshipList = Set(await SpeechTranscriber.supportedLocales.map { $0.identifier(.bcp47) })
+
+        func resolve(_ wanted: Locale) async -> (Locale, EngineKind)? {
+            if let match = await SpeechTranscriber.supportedLocale(equivalentTo: wanted),
+               flagshipList.contains(match.identifier(.bcp47)) {
                 return (match, .flagship)
             }
             if let match = await DictationTranscriber.supportedLocale(equivalentTo: wanted) {
                 return (match, .dictation)
             }
+            return nil
         }
-        if let match = await SpeechTranscriber.supportedLocale(equivalentTo: Locale.current) {
-            return (match, .flagship)
+
+        let preference = Settings.shared.dictationLocale
+        if preference != "auto", let resolved = await resolve(Locale(identifier: preference)) {
+            return resolved
         }
-        if let match = await DictationTranscriber.supportedLocale(equivalentTo: Locale.current) {
-            return (match, .dictation)
+        if let resolved = await resolve(Locale.current) {
+            return resolved
         }
         return (Locale(identifier: "en_US"), .flagship)
     }
