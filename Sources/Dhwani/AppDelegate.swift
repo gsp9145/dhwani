@@ -170,7 +170,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         menu.addItem(disabled("All time: \(total.words) words · \(total.notes) notes"))
         menu.addItem(.separator())
 
-        let recents = HistoryStore.shared.recent(limit: 8)
+        let recents = HistoryStore.shared.recent(limit: 20)
         if !recents.isEmpty {
             let recentMenu = NSMenu()
             let timeFormatter = DateFormatter()
@@ -182,7 +182,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
                                       action: #selector(copyRecent(_:)), keyEquivalent: "")
                 item.target = self
                 item.representedObject = entry.text
-                item.toolTip = "Click to copy the full transcript"
+                // Hover shows the whole transcript so the right entry is easy
+                // to confirm before copying. Cap pathological lengths.
+                item.toolTip = entry.text.count > 1500
+                    ? String(entry.text.prefix(1500)) + "…"
+                    : entry.text
                 recentMenu.addItem(item)
             }
             let recentRoot = NSMenuItem(title: "Recent (click to copy)", action: nil, keyEquivalent: "")
