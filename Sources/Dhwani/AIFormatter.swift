@@ -113,6 +113,38 @@ enum AIFormatter {
         #endif
     }
 
+    /// User-invoked rewrite for TransformService. Unlike inline polish this is
+    /// ALLOWED to rewrite — the user asked for it, sees the result, can ⌘Z.
+    /// Basic sanity only: non-empty, not absurdly long.
+    static func transform(_ text: String, instructions: String, timeout: TimeInterval = 8) async -> String? {
+        #if canImport(FoundationModels)
+        guard #available(macOS 26.0, *) else { return nil }
+        guard case .available = SystemLanguageModel.default.availability else { return nil }
+        guard text.count < 8000 else { return nil }
+
+        let session = LanguageModelSession(instructions: instructions)
+        let result: String? = await withTimeout(seconds: timeout) { () -> String? in
+            do {
+                return try await session.respond(to: "<text>\n\(text)\n</text>",
+                                                 options: GenerationOptions(sampling: .greedy)).content
+            } catch {
+                DebugLog.log("transform: model failed (\(error))")
+                return nil
+            }
+        } ?? nil
+
+        guard var cleaned = result?.trimmingCharacters(in: .whitespacesAndNewlines), !cleaned.isEmpty else { return nil }
+        cleaned = cleaned
+            .replacingOccurrences(of: "<text>", with: "")
+            .replacingOccurrences(of: "</text>", with: "")
+            .trimmingCharacters(in: CharacterSet(charactersIn: "\"“” \n"))
+        guard !cleaned.isEmpty, cleaned.count < text.count * 4 + 200 else { return nil }
+        return cleaned
+        #else
+        return nil
+        #endif
+    }
+
     /// Title + topic tags for the history, in one schema-constrained call.
     /// Runs in the background after insertion — can never affect pasted text.
     /// Returns nil when unavailable, unsupported language, timeout, or failure.

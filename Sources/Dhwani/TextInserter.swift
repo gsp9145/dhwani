@@ -150,16 +150,22 @@ enum TextInserter {
     }
 
     private static func postCommandV() {
+        postEditShortcut("v", ansiFallback: vKeyCode)
+    }
+
+    /// Synthesize ⌘+<letter> with a layout-aware keycode. Used for paste ("v")
+    /// and, by transforms, copy ("c").
+    static func postEditShortcut(_ letter: Character, ansiFallback: CGKeyCode = 9) {
         guard let source = CGEventSource(stateID: .combinedSessionState) else { return }
-        // Non-QWERTY layouts move the letter V to a different physical key; on
+        // Non-QWERTY layouts move letters to different physical keys; on
         // non-Latin layouts the lookup fails and the ANSI position is correct.
-        let keyCode = KeyboardLayout.keyCode(for: "v") ?? vKeyCode
+        let keyCode = KeyboardLayout.keyCode(for: letter) ?? ansiFallback
         let down = CGEvent(keyboardEventSource: source, virtualKey: keyCode, keyDown: true)
         let up = CGEvent(keyboardEventSource: source, virtualKey: keyCode, keyDown: false)
         down?.flags = .maskCommand
         up?.flags = .maskCommand
         down?.post(tap: .cghidEventTap)
-        usleep(10_000) // some apps drop the paste if down/up land in the same instant
+        usleep(10_000) // some apps drop the shortcut if down/up land in the same instant
         up?.post(tap: .cghidEventTap)
     }
 

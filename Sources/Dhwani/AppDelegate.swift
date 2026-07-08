@@ -64,6 +64,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         hotkeys.onPolishArm = { armed in HUD.shared.setPolishArmed(armed) }
         hotkeys.onCancel = { [weak self] in self?.dictation.cancelDictation() }
         hotkeys.onHandsFreeLocked = { [weak self] in self?.dictation.lockHandsFree() }
+        hotkeys.onTransform = { index in TransformService.run(index) }
         hotkeys.onTapTimeout = { [weak self] in self?.dictation.dismissAccidentalTap() }
         dictation.hotkeyStillHeld = { [weak self] in self?.hotkeys.isKeyCurrentlyDown ?? false }
 
@@ -207,6 +208,23 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         hotkeyRoot.submenu = hotkeyMenu
         menu.addItem(hotkeyRoot)
 
+        // Selection transforms (⌥⌘1–4)
+        let transformMenu = NSMenu()
+        for (index, kind) in TransformService.kinds.enumerated() {
+            let item = NSMenuItem(title: kind.title, action: #selector(runTransform(_:)), keyEquivalent: "\(index + 1)")
+            item.keyEquivalentModifierMask = [.option, .command]
+            item.tag = index
+            item.target = self
+            transformMenu.addItem(item)
+        }
+        let transformRoot = NSMenuItem(title: "Transform Selection", action: nil, keyEquivalent: "")
+        transformRoot.submenu = transformMenu
+        if !AIFormatter.isAvailable {
+            transformRoot.action = nil
+            transformRoot.toolTip = "Requires Apple Intelligence"
+        }
+        menu.addItem(transformRoot)
+
         menu.addItem(.separator())
         menu.addItem(disabled("Dhwani v\(UpdateChecker.currentVersion)"))
 
@@ -238,6 +256,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         }
         NSApp.activate(ignoringOtherApps: true)
         settingsWindow?.makeKeyAndOrderFront(nil)
+    }
+
+    @objc private func runTransform(_ sender: NSMenuItem) {
+        TransformService.run(sender.tag)
     }
 
     @objc private func grantAccessibility() {

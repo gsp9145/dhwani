@@ -20,6 +20,8 @@ final class HotkeyManager {
     var onCancel: (() -> Void)?
     /// Fired when a double-tap locks hands-free recording.
     var onHandsFreeLocked: (() -> Void)?
+    /// ⌥⌘1–4 pressed while idle: run transform at the given index.
+    var onTransform: ((Int) -> Void)?
     /// Fired when a lone quick tap expires — an accidental press, not a gesture.
     var onTapTimeout: (() -> Void)?
     /// Should return true while a dictation is in flight (recording or processing).
@@ -32,6 +34,8 @@ final class HotkeyManager {
     /// Max gap between first tap's release and second tap's press to lock hands-free.
     static let doubleTapWindow: TimeInterval = 0.4
     private static let escapeKeyCode: Int64 = 53
+    /// ANSI keycodes for the 1–4 row keys.
+    private static let transformKeyCodes: [Int64] = [18, 19, 20, 21]
     /// On Fn/Globe release macOS synthesizes a keyDown/keyUp with this code
     /// (its internal emoji-palette trigger). It's the same physical key, not a
     /// stray press — treat it as part of the Fn gesture.
@@ -232,6 +236,16 @@ final class HotkeyManager {
         // so ghost cancels can be traced to their source.
         if recording, type == .keyDown {
             DebugLog.log("event: keyDown code=\(keyCode) during dictation (keyIsDown=\(keyIsDown) window=\(doubleTapTimer != nil) handsFree=\(isHandsFree))")
+        }
+
+        // ⌥⌘1–4 → selection transforms (only while no dictation is in flight).
+        if type == .keyDown, !recording,
+           event.flags.contains(.maskCommand), event.flags.contains(.maskAlternate),
+           !event.flags.contains(.maskControl), !event.flags.contains(.maskShift),
+           let index = Self.transformKeyCodes.firstIndex(of: keyCode) {
+            DebugLog.log("gesture: transform hotkey \(index + 1)")
+            onTransform?(index)
+            return nil
         }
 
         // Live ✦ hint: while recording, ⌥ arms per-dictation polish (skip when
