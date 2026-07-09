@@ -119,6 +119,16 @@ final class RecentMenuItemView: NSView {
 
     required init?(coder: NSCoder) { fatalError("not used") }
 
+    /// When the menu tears down, the row moves to a nil window — a reliable
+    /// signal to dismiss the preview even if no mouseExited arrived first.
+    override func viewDidMoveToWindow() {
+        super.viewDidMoveToWindow()
+        if window == nil {
+            highlighted = false
+            MenuPreviewPanel.shared.hideNow()
+        }
+    }
+
     override func updateTrackingAreas() {
         super.updateTrackingAreas()
         if let tracking { removeTrackingArea(tracking) }

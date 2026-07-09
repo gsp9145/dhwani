@@ -141,7 +141,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
 
     // MARK: - Menu
 
+    func menuDidClose(_ menu: NSMenu) {
+        // Any menu closing must take the floating transcript preview with it,
+        // otherwise it can linger on top of everything.
+        MenuPreviewPanel.shared.hideNow()
+    }
+
     func menuNeedsUpdate(_ menu: NSMenu) {
+        guard menu === statusItem.menu else { return } // submenus reuse this delegate only for menuDidClose
         menu.removeAllItems()
 
         // Permission problems go first and loud — a dead hotkey must never be silent.
@@ -187,6 +194,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
                 ) { [weak self] text in self?.copyText(text) }
                 recentMenu.addItem(item)
             }
+            recentMenu.delegate = self // menuDidClose → dismiss any hover preview
             let recentRoot = NSMenuItem(title: "Recent (click to copy)", action: nil, keyEquivalent: "")
             recentRoot.submenu = recentMenu
             menu.addItem(recentRoot)
